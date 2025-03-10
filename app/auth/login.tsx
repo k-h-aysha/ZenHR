@@ -14,8 +14,6 @@ import {
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { supabase, verifyPassword } from '../../lib/supabase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 const formWidth = Math.min(400, width * 0.9);
@@ -35,37 +33,10 @@ export default function LoginScreen() {
         return;
       }
 
-      // Get user from database
-      const { data: users, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email.toLowerCase());
-
-      if (fetchError) throw fetchError;
-
-      if (!users || users.length === 0) {
-        Alert.alert('Error', 'User not found');
-        return;
-      }
-
-      const user = users[0];
-
-      // Verify password
-      const isValid = await verifyPassword(password, user.password);
-
-      if (!isValid) {
-        Alert.alert('Error', 'Invalid password');
-        return;
-      }
-
-      // Store user session
-      await AsyncStorage.setItem('user', JSON.stringify({
-        id: user.id,
-        email: user.email,
-        full_name: user.full_name,
-      }));
-
-      // Navigate to home screen
+      // TODO: Implement your own login logic here
+      console.log('Login pressed with:', { email, password });
+      
+      // For demo purposes, just navigate to home
       router.replace('/');
     } catch (error) {
       Alert.alert('Error', 'Failed to login');
