@@ -14,7 +14,6 @@ import {
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { supabase, hashPassword } from '../../lib/supabase';
 
 const { width, height } = Dimensions.get('window');
 const formWidth = Math.min(400, width * 0.9);
@@ -41,31 +40,10 @@ export default function SignupScreen() {
         return;
       }
 
-      // Check if user already exists
-      const { data: existingUsers } = await supabase
-        .from('users')
-        .select('email')
-        .eq('email', email.toLowerCase());
-
-      if (existingUsers && existingUsers.length > 0) {
-        Alert.alert('Error', 'Email already registered');
-        return;
-      }
-
-      // Hash password
-      const hashedPassword = await hashPassword(password);
-
-      // Insert new user
-      const { error } = await supabase.from('users').insert([
-        {
-          email: email.toLowerCase(),
-          full_name: name,
-          password: hashedPassword,
-        },
-      ]);
-
-      if (error) throw error;
-
+      // TODO: Implement your own signup logic here
+      console.log('Signup pressed with:', { name, email, password });
+      
+      // For demo purposes, just navigate to login
       Alert.alert('Success', 'Account created successfully', [
         {
           text: 'OK',
