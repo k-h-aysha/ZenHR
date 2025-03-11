@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, TouchableOpacity, ScrollView, View, Dimensions, Alert, StatusBar, Platform } from 'react-native';
+import { StyleSheet, TouchableOpacity, ScrollView, View, Dimensions, Alert, StatusBar, Platform, Modal } from 'react-native';
 import { format } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, interpolateColor, useDerivedValue, withSpring } from 'react-native-reanimated';
+import { useAuth } from '../../lib/auth/AuthContext';
 
 import { ThemedText } from '@/components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -159,6 +160,67 @@ export default function HomeScreen() {
     };
   });
 
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.replace('/auth/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to logout. Please try again.');
+    }
+  };
+
+  // Update the settings icon press handler in the header
+  const headerIcons = (
+    <View style={styles.headerIcons}>
+      <TouchableOpacity style={styles.iconButton}>
+        <Ionicons name="notifications-outline" size={24} color="#ffffff" />
+        <View style={styles.notificationBadge} />
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={styles.iconButton}
+        onPress={() => setIsSettingsVisible(true)}
+      >
+        <Ionicons name="settings-outline" size={24} color="#ffffff" />
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Add settings modal
+  const settingsModal = (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isSettingsVisible}
+      onRequestClose={() => setIsSettingsVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <ThemedText style={styles.modalTitle}>Settings</ThemedText>
+            <TouchableOpacity 
+              onPress={() => setIsSettingsVisible(false)}
+              style={styles.closeButton}
+            >
+              <Ionicons name="close" size={24} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.settingsButton}
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={24} color="#ef4444" />
+            <ThemedText style={styles.settingsButtonText}>Logout</ThemedText>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <View style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
@@ -176,15 +238,7 @@ export default function HomeScreen() {
             <ThemedText style={styles.logoText}>
               Zen<ThemedText style={styles.logoHighlight}>HR</ThemedText>
             </ThemedText>
-            <View style={styles.headerIcons}>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="notifications-outline" size={24} color="#ffffff" />
-                <View style={styles.notificationBadge} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="settings-outline" size={24} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
+            {headerIcons}
           </View>
 
           {/* Date and Time Section */}
@@ -344,6 +398,8 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         </ScrollView>
+        
+        {settingsModal}
       </LinearGradient>
     </View>
   );
@@ -608,6 +664,47 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
     textAlign: 'center',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#1e293b',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    minHeight: 200,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  settingsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  settingsButtonText: {
+    color: '#ef4444',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 10,
+  },
 });
-
-export default withAuth(HomeScreen); 
