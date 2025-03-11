@@ -35,6 +35,7 @@ export default function LoginScreen() {
       // Basic validation
       if (!email || !password) {
         Alert.alert('Error', 'Please fill in all fields');
+        setLoading(false);
         return;
       }
 

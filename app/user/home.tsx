@@ -609,5 +609,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
-export default withAuth(HomeScreen); 
