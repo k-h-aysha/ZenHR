@@ -1,9 +1,9 @@
+import React, { useEffect, useState } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -50,6 +50,10 @@ export default function RootLayout() {
           <>
             <Stack.Screen 
               name="(tabs)" 
+              options={{ headerShown: false }} 
+            />
+            <Stack.Screen 
+              name="user" 
               options={{ headerShown: false }} 
             />
             <Stack.Screen name="+not-found" />

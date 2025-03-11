@@ -254,12 +254,11 @@ const styles = StyleSheet.create({
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
-    minWidth: 80,
-    alignItems: 'center',
+    borderRadius: 16,
+    alignSelf: 'flex-start',
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-  },
+  }
 }); 

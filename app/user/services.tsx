@@ -124,7 +124,7 @@ export default function ServicesScreen() {
             title="Leave Request"
             icon="calendar"
             description="Request time off or vacation days"
-            route="/apply-leave"
+            route="/user/apply-leave"
             colorTheme="blue"
           />
           
@@ -132,7 +132,7 @@ export default function ServicesScreen() {
             title="Leave History"
             icon="time"
             description="View your leave history and status"
-            route="/leave-history"
+            route="/user/leave-history"
             colorTheme="purple"
           />
           
@@ -148,39 +148,34 @@ export default function ServicesScreen() {
             title="Payroll"
             icon="cash"
             description="View your salary details and pay slips"
-            route="/(tabs)"
-            colorTheme="indigo"
-          />
-          
-          <ServiceCard
-            title="Attendance Tracking"
-            icon="analytics"
-            description="Track your attendance and performance"
-            route="/(tabs)"
             colorTheme="sky"
           />
           
           <ServiceCard
-            title="Team Calendar"
+            title="Performance"
+            icon="analytics"
+            description="Check your performance metrics"
+            colorTheme="indigo"
+          />
+          
+          <ServiceCard
+            title="Team"
             icon="people"
-            description="View team schedules and events"
-            route="/(tabs)"
+            description="View your team members and structure"
             colorTheme="rose"
           />
           
           <ServiceCard
             title="Documents"
             icon="document-text"
-            description="Access important documents and forms"
-            route="/(tabs)"
+            description="Access company documents"
             colorTheme="amber"
           />
           
           <ServiceCard
             title="Benefits"
             icon="gift"
-            description="View your employment benefits"
-            route="/(tabs)"
+            description="Explore available employee benefits"
             colorTheme="emerald"
           />
         </View>
@@ -200,7 +195,6 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 20,
-    marginTop: 10,
   },
   headerTitle: {
     fontSize: 20,
@@ -208,9 +202,9 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -222,32 +216,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-    marginTop: 8,
-  },
   cardsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    marginTop: 20,
   },
   serviceCard: {
     width: '48%',
-    borderRadius: 16,
-    padding: 16,
     marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-    elevation: 2,
+    elevation: 3,
   },
   iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
@@ -258,11 +247,11 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 8,
     color: '#1e293b',
   },
   cardDescription: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#475569',
-  },
+  }
 }); 

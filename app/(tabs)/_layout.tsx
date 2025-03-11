@@ -107,8 +107,8 @@ export default function TabLayout() {
             <CustomTabBarButton 
               {...props} 
               onPress={() => {
-                // Navigate to services page
-                router.push('/services');
+                // Navigate to user services page
+                router.push('/user/services');
               }}
             />
           ),
