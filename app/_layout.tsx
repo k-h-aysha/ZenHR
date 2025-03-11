@@ -18,7 +18,12 @@ function RootLayoutNav() {
   useEffect(() => {
     console.log('Navigation state changed:', { user, isLoading });
     if (!isLoading && user) {
-      router.replace('/(tabs)');
+      // Check user role and redirect accordingly
+      if (user.role === 'admin') {
+        router.replace('/admin');
+      } else {
+        router.replace('/(tabs)');
+      }
     } else if (!isLoading) {
       router.replace('/auth');
     }
@@ -29,6 +34,8 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         {!user ? (
           <Stack.Screen name="auth" />
+        ) : user.role === 'admin' ? (
+          <Stack.Screen name="admin" />
         ) : (
           <Stack.Screen name="(tabs)" />
         )}

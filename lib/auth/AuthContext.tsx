@@ -1,19 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { User } from '../../lib/types';
 
-type User = {
-  id: string;
-  email: string;
-  full_name: string;
-};
-
-type AuthContextType = {
-  user: User | null;
+interface AuthContextType {
+  user: (User & { role?: string }) | null;
   isLoading: boolean;
-  login: (user: User) => Promise<void>;
+  login: (userData: User & { role?: string }) => Promise<void>;
   logout: () => Promise<void>;
-};
+}
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
@@ -23,7 +18,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<(User & { role?: string }) | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -45,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkUser();
   }, []);
 
-  const login = async (userData: User) => {
+  const login = async (userData: User & { role?: string }) => {
     try {
       console.log('Logging in with user data:', userData);
       await AsyncStorage.setItem('user', JSON.stringify(userData));

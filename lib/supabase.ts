@@ -18,55 +18,54 @@ type AuthError = {
 type SupabaseError = AuthError | PostgrestError;
 
 // Helper functions for authentication
-export const signUpUser = async (email: string, password: string, name: string) => {
+export const signUpUser = async (email: string, password: string, name: string, role: string = 'user') => {
   try {
-    // Check if user already exists
-    const { data: existingUser, error: checkError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
+    // First, create the auth user with auto-confirmation enabled
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+          role: role,
+        },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found"
-      console.log('Check user error:', checkError);
-      throw new Error('Error checking existing user');
+    if (authError) throw authError;
+
+    // Check if email confirmation is required
+    if (authData?.user && !authData.user.confirmed_at) {
+      return {
+        data: authData,
+        error: null as SupabaseError | null,
+        message: 'Please check your email for confirmation link',
+      };
     }
 
-    if (existingUser) {
-      throw new Error('User with this email already exists');
-    }
-
-    // Create new user in users table with default UUID from Supabase
-    const { data: newUser, error: createError } = await supabase
+    // Then, store additional user data in a custom table
+    const { error: profileError } = await supabase
       .from('users')
       .insert([
         {
+          id: authData.user?.id,
           email,
-          password,
           full_name: name,
+          role: role,
           created_at: new Date().toISOString(),
         },
-      ])
-      .select()
-      .single();
+      ]);
 
-    if (createError) {
-      console.log('Create user error:', createError);
-      throw createError;
-    }
+    if (profileError) throw profileError;
 
     return {
-      data: { user: newUser },
+      data: { ...authData, user: { ...authData.user, role } },
       error: null as SupabaseError | null,
       message: 'Account created successfully',
     };
   } catch (error) {
-    console.log('Signup error:', error);
-    return { 
-      data: null, 
-      error: { message: error instanceof Error ? error.message : 'Failed to create account' } as SupabaseError,
-      message: null 
-    };
+    return { data: null, error: error as SupabaseError, message: null };
   }
 };
 
