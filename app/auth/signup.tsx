@@ -10,10 +10,13 @@ import {
   ScrollView,
   Dimensions,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { signUpUser } from '../../lib/supabase';
+import { AuthError, PostgrestError } from '@supabase/supabase-js';
 
 const { width, height } = Dimensions.get('window');
 const formWidth = Math.min(400, width * 0.9);
@@ -40,19 +43,25 @@ export default function SignupScreen() {
         return;
       }
 
-      // TODO: Implement your own signup logic here
-      console.log('Signup pressed with:', { name, email, password });
-      
-      // For demo purposes, just navigate to login
-      Alert.alert('Success', 'Account created successfully', [
+      const { data, error, message } = await signUpUser(email, password, name);
+
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+
+      Alert.alert('Success', message || 'Account created successfully', [
         {
           text: 'OK',
-          onPress: () => router.replace('/auth/login'),
+          onPress: () => {
+            // Navigate to login screen after successful signup
+            router.replace('/auth/login');
+          },
         },
       ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create account');
-      console.error('Signup error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create account';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -134,8 +143,16 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
-              <Text style={styles.signupButtonText}>Create Account</Text>
+            <TouchableOpacity 
+              style={[styles.signupButton, loading && styles.signupButtonDisabled]} 
+              onPress={handleSignup}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#0f172a" size="small" />
+              ) : (
+                <Text style={styles.signupButtonText}>Create Account</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.loginContainer}>
@@ -233,6 +250,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  signupButtonDisabled: {
+    backgroundColor: '#93c5fd80',
+    shadowOpacity: 0.1,
   },
   signupButtonText: {
     color: '#0f172a',

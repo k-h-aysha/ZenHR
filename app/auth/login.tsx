@@ -10,10 +10,14 @@ import {
   ScrollView,
   Dimensions,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { signInUser } from '../../lib/supabase';
+import { AuthError, PostgrestError } from '@supabase/supabase-js';
+import { useAuth } from '../../lib/auth/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 const formWidth = Math.min(400, width * 0.9);
@@ -22,6 +26,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleLogin = async () => {
     try {
@@ -33,14 +38,28 @@ export default function LoginScreen() {
         return;
       }
 
-      // TODO: Implement your own login logic here
-      console.log('Login pressed with:', { email, password });
-      
-      // For demo purposes, just navigate to home
-      router.replace('/');
+      const { data, error } = await signInUser(email, password);
+      console.log('Login response:', { data, error });
+
+      if (error) {
+        Alert.alert('Error', error.message);
+        return;
+      }
+
+      // Store user data in AuthContext
+      if (data?.user) {
+        console.log('Attempting to login with user:', data.user);
+        await login(data.user);
+        console.log('Login successful, navigating to home');
+        router.replace('/');
+      } else {
+        console.log('No user data received');
+        Alert.alert('Error', 'Failed to get user data');
+      }
     } catch (error) {
-      Alert.alert('Error', 'Failed to login');
       console.error('Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to login';
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -102,8 +121,16 @@ export default function LoginScreen() {
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-              <Text style={styles.loginButtonText}>Sign In</Text>
+            <TouchableOpacity 
+              style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#0f172a" size="small" />
+              ) : (
+                <Text style={styles.loginButtonText}>Sign In</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.signupContainer}>
@@ -210,6 +237,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  loginButtonDisabled: {
+    backgroundColor: '#93c5fd80',
+    shadowOpacity: 0.1,
   },
   loginButtonText: {
     color: '#0f172a',
