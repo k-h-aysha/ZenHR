@@ -1,77 +1,115 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { withAuth } from '../../lib/auth/AuthContext';
-import { signOutUser } from '../../lib/supabase';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ThemedText } from '@/components/ThemedText';
 
-function AdminDashboard() {
-  const handleSignOut = async () => {
-    const { error } = await signOutUser();
-    if (!error) {
-      router.replace('/auth/login');
-    }
+const { width } = Dimensions.get('window');
+
+export default function AdminDashboard() {
+  const insets = useSafeAreaInsets();
+
+  const stats = {
+    totalEmployees: 150,
+    activeLeaves: 8,
+    departments: 12,
+    pendingRequests: 5
   };
 
+  const recentActivities = [
+    { id: '1', type: 'leave', message: 'John Doe requested annual leave', time: '2 hours ago' },
+    { id: '2', type: 'join', message: 'Sarah Smith joined Marketing team', time: '5 hours ago' },
+    { id: '3', type: 'leave', message: 'Mike Johnson approved leave request', time: '1 day ago' },
+  ];
+
   return (
-    <LinearGradient
-      colors={['#0f172a', '#1e3a8a', '#2563eb']}
-      style={styles.container}
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Admin Dashboard</Text>
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Text style={styles.signOutButtonText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.content}>
-        {/* Stats Overview */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>150</Text>
-            <Text style={styles.statLabel}>Total Employees</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>12</Text>
-            <Text style={styles.statLabel}>Departments</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>25</Text>
-            <Text style={styles.statLabel}>New Requests</Text>
-          </View>
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.actionButton}>
-              <Text style={styles.actionButtonText}>Add Employee</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
-              <Text style={styles.actionButtonText}>View Reports</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
-              <Text style={styles.actionButtonText}>Manage Departments</Text>
+    <View style={{ flex: 1 }}>
+      <LinearGradient
+        colors={['#0f172a', '#1e3a8a', '#2563eb']}
+        style={[styles.container, { paddingTop: insets.top }]}
+      >
+        <ScrollView style={styles.scrollView}>
+          {/* Header */}
+          <View style={styles.header}>
+            <ThemedText style={styles.headerTitle}>Admin Dashboard</ThemedText>
+            <TouchableOpacity style={styles.notificationButton}>
+              <Ionicons name="notifications-outline" size={24} color="#ffffff" />
+              <View style={styles.notificationBadge} />
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Recent Activity */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          <View style={styles.activityList}>
-            {[1, 2, 3].map((item) => (
-              <View key={item} style={styles.activityItem}>
-                <Text style={styles.activityText}>New employee registration request</Text>
-                <Text style={styles.activityTime}>2 hours ago</Text>
+          {/* Stats Grid */}
+          <View style={styles.statsGrid}>
+            <View style={[styles.statCard, { backgroundColor: '#f1f5f9' }]}>
+              <ThemedText style={styles.statNumber}>{stats.totalEmployees}</ThemedText>
+              <ThemedText style={styles.statLabel}>Total Employees</ThemedText>
+              <Ionicons name="people" size={24} color="#1e3a8a" style={styles.statIcon} />
+            </View>
+            <View style={[styles.statCard, { backgroundColor: '#dbeafe' }]}>
+              <ThemedText style={styles.statNumber}>{stats.activeLeaves}</ThemedText>
+              <ThemedText style={styles.statLabel}>Active Leaves</ThemedText>
+              <Ionicons name="calendar" size={24} color="#1e3a8a" style={styles.statIcon} />
+            </View>
+            <View style={[styles.statCard, { backgroundColor: '#e0f2fe' }]}>
+              <ThemedText style={styles.statNumber}>{stats.departments}</ThemedText>
+              <ThemedText style={styles.statLabel}>Departments</ThemedText>
+              <Ionicons name="business" size={24} color="#1e3a8a" style={styles.statIcon} />
+            </View>
+            <View style={[styles.statCard, { backgroundColor: '#fef3c7' }]}>
+              <ThemedText style={styles.statNumber}>{stats.pendingRequests}</ThemedText>
+              <ThemedText style={styles.statLabel}>Pending Requests</ThemedText>
+              <Ionicons name="time" size={24} color="#1e3a8a" style={styles.statIcon} />
+            </View>
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Quick Actions</ThemedText>
+            <View style={styles.quickActions}>
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={[styles.actionIcon, { backgroundColor: 'rgba(96, 165, 250, 0.2)' }]}>
+                  <Ionicons name="person-add" size={24} color="#93c5fd" />
+                </View>
+                <ThemedText style={styles.actionText}>Add Employee</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={[styles.actionIcon, { backgroundColor: 'rgba(34, 197, 94, 0.2)' }]}>
+                  <Ionicons name="document-text" size={24} color="#4ade80" />
+                </View>
+                <ThemedText style={styles.actionText}>View Reports</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <View style={[styles.actionIcon, { backgroundColor: 'rgba(251, 191, 36, 0.2)' }]}>
+                  <Ionicons name="settings" size={24} color="#fbbf24" />
+                </View>
+                <ThemedText style={styles.actionText}>Settings</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Recent Activity */}
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Recent Activity</ThemedText>
+            {recentActivities.map((activity) => (
+              <View key={activity.id} style={styles.activityItem}>
+                <View style={styles.activityIcon}>
+                  <Ionicons
+                    name={activity.type === 'leave' ? 'calendar' : 'person-add'}
+                    size={20}
+                    color="#93c5fd"
+                  />
+                </View>
+                <View style={styles.activityContent}>
+                  <ThemedText style={styles.activityMessage}>{activity.message}</ThemedText>
+                  <ThemedText style={styles.activityTime}>{activity.time}</ThemedText>
+                </View>
               </View>
             ))}
           </View>
-        </View>
-      </ScrollView>
-    </LinearGradient>
+        </ScrollView>
+      </LinearGradient>
+    </View>
   );
 }
 
@@ -79,59 +117,64 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
+  scrollView: {
+    flex: 1,
     padding: 20,
+  },
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 20,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#ffffff',
   },
-  signOutButton: {
-    backgroundColor: '#93c5fd',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 8,
+  notificationButton: {
+    padding: 8,
+    position: 'relative',
   },
-  signOutButtonText: {
-    color: '#0f172a',
-    fontSize: 14,
-    fontWeight: '600',
+  notificationBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
   },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  statsContainer: {
+  statsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   statCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
+    width: (width - 50) / 2,
     padding: 15,
-    flex: 1,
-    marginHorizontal: 5,
-    alignItems: 'center',
+    borderRadius: 12,
+    marginBottom: 10,
   },
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 5,
+    color: '#1e3a8a',
   },
   statLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  statIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    opacity: 0.8,
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 18,
@@ -139,37 +182,54 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginBottom: 15,
   },
-  actionButtons: {
-    gap: 10,
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   actionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
+    alignItems: 'center',
+    width: (width - 80) / 3,
   },
-  actionButtonText: {
+  actionIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  actionText: {
+    fontSize: 12,
     color: '#ffffff',
-    fontSize: 16,
     textAlign: 'center',
   },
-  activityList: {
-    gap: 10,
-  },
   activityItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    padding: 15,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
   },
-  activityText: {
-    color: '#ffffff',
+  activityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(147, 197, 253, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityMessage: {
     fontSize: 14,
-    marginBottom: 5,
+    color: '#ffffff',
+    marginBottom: 4,
   },
   activityTime: {
-    color: 'rgba(255, 255, 255, 0.5)',
     fontSize: 12,
+    color: '#94a3b8',
   },
-});
-
-export default withAuth(AdminDashboard); 
+}); 
