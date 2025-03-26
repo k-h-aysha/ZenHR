@@ -1,3 +1,5 @@
+import 'react-native-url-polyfill/auto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, PostgrestError } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 
@@ -20,47 +22,22 @@ type SupabaseError = AuthError | PostgrestError;
 // Helper functions for authentication
 export const signUpUser = async (email: string, password: string, name: string, role: string = 'user') => {
   try {
-    // First, create the auth user with auto-confirmation enabled
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: name,
-          role: role,
-        },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-
-    if (authError) throw authError;
-
-    // Check if email confirmation is required
-    if (authData?.user && !authData.user.confirmed_at) {
-      return {
-        data: authData,
-        error: null as SupabaseError | null,
-        message: 'Please check your email for confirmation link',
-      };
-    }
-
-    // Then, store additional user data in a custom table
-    const { error: profileError } = await supabase
+    const { error } = await supabase
       .from('users')
       .insert([
         {
-          id: authData.user?.id,
           email,
+          password,
           full_name: name,
           role: role,
           created_at: new Date().toISOString(),
         },
       ]);
 
-    if (profileError) throw profileError;
+    if (error) throw error;
 
     return {
-      data: { ...authData, user: { ...authData.user, role } },
+      data: { email, full_name: name, role },
       error: null as SupabaseError | null,
       message: 'Account created successfully',
     };
@@ -71,15 +48,14 @@ export const signUpUser = async (email: string, password: string, name: string, 
 
 export const signInUser = async (email: string, password: string) => {
   try {
-    // Check user credentials in users table
-    const { data: user, error: userError } = await supabase
+    const { data: user, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
       .eq('password', password)
       .single();
 
-    if (userError || !user) {
+    if (error || !user) {
       throw new Error('Invalid email or password');
     }
 
