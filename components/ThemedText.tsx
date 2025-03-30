@@ -33,28 +33,31 @@ export function ThemedText({
   );
 }
 
+// Add these style updates to your ThemedText component
 const styles = StyleSheet.create({
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
+  text: {
+    fontSize: 16, // Base font size
+    color: '#ffffff',
   },
-  defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 32,
+  heading1: {
+    fontSize: 24,
     fontWeight: 'bold',
-    lineHeight: 32,
   },
-  subtitle: {
+  heading2: {
     fontSize: 20,
     fontWeight: 'bold',
   },
-  link: {
-    lineHeight: 30,
+  heading3: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  body: {
     fontSize: 16,
-    color: '#0a7ea4',
+  },
+  small: {
+    fontSize: 14,
+  },
+  caption: {
+    fontSize: 12,
   },
 });

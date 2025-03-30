@@ -11,7 +11,33 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase configuration');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Initialize Supabase client with storage adapter for authentication
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: AsyncStorage as any,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
+
+// Test connection and log any issues
+(async () => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .limit(1);
+    
+    if (error) {
+      console.error('Error connecting to Supabase:', error);
+    } else {
+      console.log('Supabase connection successful!');
+    }
+  } catch (err) {
+    console.error('Unexpected error in Supabase connection:', err);
+  }
+})();
 
 type AuthError = {
   message: string;

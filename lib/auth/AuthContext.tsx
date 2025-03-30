@@ -40,11 +40,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkUser();
   }, []);
 
+  // Monitor auth state changes for navigation
+  useEffect(() => {
+    if (!isLoading) {
+      console.log('Navigation state changed:', { isLoading, user });
+      
+      // Simple approach: always navigate based on auth state
+      if (user) {
+        // If user is logged in, go to home
+        router.replace('/user/home');
+      } else {
+        // If user is not logged in, go to login
+        router.replace('/auth/login');
+      }
+    }
+  }, [isLoading, user]);
+
   const login = async (userData: User & { role?: string }) => {
     try {
       console.log('Logging in with user data:', userData);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
+      router.replace('/user/home');
       console.log('User logged in successfully');
     } catch (error) {
       console.error('Error saving user data:', error);

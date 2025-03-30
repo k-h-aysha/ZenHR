@@ -15,47 +15,29 @@ function RootLayoutNav() {
   const { user, isLoading } = useAuth();
   const colorScheme = useColorScheme();
 
-  useEffect(() => {
-    console.log('Navigation state changed:', { user, isLoading });
-    if (!isLoading && user) {
-      // Check user role and redirect accordingly
-      if (user.role === 'admin') {
-        router.replace('/admin');
-      } else {
-        router.replace('/(tabs)');
-      }
-    } else if (!isLoading) {
-      router.replace('/auth');
-    }
-  }, [user, isLoading]);
+  // No need for navigation logic here as it's handled in AuthContext
 
   return (
-    <>
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
-        {/* Global error screen */}
-        <Stack.Screen name="+not-found" options={{ headerShown: true }} />
-        
-        {!user ? (
-          // Auth Stack
-          <Stack.Screen name="auth" />
-        ) : user.role === 'admin' ? (
-          // Admin Stack
-          <Stack.Screen name="admin" />
-        ) : (
-          // Main App Stack
-          <Stack.Screen name="(tabs)" />
-        )}
+        <Stack.Screen name="index" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="user" />
+        <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-    </>
+    </ThemeProvider>
   );
 }
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
+  const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
-  const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    if (error) throw error;
+  }, [error]);
 
   useEffect(() => {
     if (loaded) {
@@ -68,10 +50,8 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AuthProvider>
-        <RootLayoutNav />
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
   );
 }

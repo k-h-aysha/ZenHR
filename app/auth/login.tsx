@@ -51,8 +51,8 @@ export default function LoginScreen() {
       if (data?.user) {
         console.log('Attempting to login with user:', data.user);
         await login(data.user);
-        console.log('Login successful, navigating to home');
-        router.replace('/');
+        console.log('Login successful, navigation handled by AuthContext');
+        // No need to navigate here, AuthContext will handle it
       } else {
         console.log('No user data received');
         Alert.alert('Error', 'Failed to get user data');

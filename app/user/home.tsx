@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, TouchableOpacity, ScrollView, View, Dimensions, Alert, StatusBar, Platform } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { StyleSheet, TouchableOpacity, ScrollView, View, Dimensions, Alert, StatusBar, Platform, ActivityIndicator } from 'react-native';
 import { format } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, interpolateColor, useDerivedValue, withSpring } from 'react-native-reanimated';
+import { supabase } from '@/lib/supabase';
 
 import { ThemedText } from '@/components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth, withAuth } from '@/lib/auth/AuthContext';
+import { clockIn, clockOut, resumeClockIn, getTodayAttendance, finalizeDayAttendance, resetAttendanceForNewDay } from '@/lib/attendance';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,7 +28,9 @@ type Announcement = {
   date: string;
 };
 
-export default function HomeScreen() {
+const HomeScreen: React.FC = () => {  // Ensure it's declared as a functional component
+  // Move all hooks to the top level
+  const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isClockedIn, setIsClockedIn] = useState(false);
@@ -34,11 +39,12 @@ export default function HomeScreen() {
     startTime: Date;
   } | null>(null);
   const [totalWorkTime, setTotalWorkTime] = useState("00:00:00");
-  const [isDragging, setIsDragging] = useState(false);
-  const slidePosition = useSharedValue(0);
-  const slideProgress = useSharedValue(0);
-  const maxSlideDistance = width * 0.6; // 60% of screen width
+  const [isLoading, setIsLoading] = useState(false);
+  const clockStateRef = useRef(false);  // Keep this declaration
   const colorTransition = useSharedValue(isClockedIn ? 1 : 0);
+  const [lastTotalWorkTime, setLastTotalWorkTime] = useState("00:00:00");
+  const [isTrackingTime, setIsTrackingTime] = useState(false);
+  const lastDateRef = useRef(format(new Date(), 'yyyy-MM-dd'));
   
   // Demo data for leaves and stats
   const [stats] = useState({
@@ -72,16 +78,23 @@ export default function HomeScreen() {
 
   const router = useRouter();
 
-  // Add a ref to track the current state reliably
-  const clockStateRef = useRef(false);
+  // Define calculateDuration with useCallback to memoize it
+  const calculateDuration = useCallback((startTime: Date, endTime: Date) => {
+    const durationMs = endTime.getTime() - startTime.getTime();
+    const hours = Math.floor(durationMs / (1000 * 60 * 60));
+    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((durationMs % (1000 * 60)) / 1000);
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, []);
 
-  // Update ref whenever isClockedIn changes
+  // Update clock state ref
   useEffect(() => {
     clockStateRef.current = isClockedIn;
   }, [isClockedIn]);
 
+  // Update current time every second
   useEffect(() => {
-    // Update current time every second
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
@@ -89,62 +102,277 @@ export default function HomeScreen() {
     return () => clearInterval(timer);
   }, []);
 
+  // FIXED: Keep only ONE timer for work time tracking
+  // This useEffect will handle all time tracking functionality
   useEffect(() => {
-    if (currentSession) {
-      // Update total work time every second when clocked in
+    // Only start a timer if user is clocked in and there's an active session
+    if (isTrackingTime && currentSession) {
+      console.log('Starting work time tracking timer');
+      
+      // Memoize the calculation function to avoid recreating it on each render
+      const calculateTotalTime = () => {
+        // Calculate current session duration
+        const sessionDuration = calculateDuration(currentSession.startTime, new Date());
+        
+        // Parse the last total and current durations to seconds
+        const lastTimeArray = lastTotalWorkTime.split(':').map(Number);
+        const lastTotalSeconds = lastTimeArray[0] * 3600 + lastTimeArray[1] * 60 + lastTimeArray[2];
+        
+        const currentArray = sessionDuration.split(':').map(Number);
+        const currentSeconds = currentArray[0] * 3600 + currentArray[1] * 60 + currentArray[2];
+        
+        // Add them together for total seconds worked
+        const totalSeconds = lastTotalSeconds + currentSeconds;
+        
+        // Convert back to HH:MM:SS format
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      };
+      
       const timer = setInterval(() => {
-        const duration = calculateDuration(currentSession.startTime, new Date());
-        setTotalWorkTime(duration);
+        setTotalWorkTime(calculateTotalTime());
       }, 1000);
-
-      return () => clearInterval(timer);
+      
+      return () => {
+        console.log('Cleaning up work time tracking timer');
+        clearInterval(timer);
+      };
     }
-  }, [currentSession]);
+  }, [isTrackingTime, currentSession, lastTotalWorkTime, calculateDuration]);
 
-  const calculateDuration = (startTime: Date, endTime: Date) => {
-    const durationMs = endTime.getTime() - startTime.getTime();
-    const hours = Math.floor(durationMs / (1000 * 60 * 60));
-    const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((durationMs % (1000 * 60)) / 1000);
+  // Load today's attendance status when component mounts
+  useEffect(() => {
+    loadTodayAttendance();
+  }, []);
+
+  const loadTodayAttendance = async () => {
+    if (!user) return;
     
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    try {
+      const record = await getTodayAttendance(user.id);
+      
+      if (record) {
+        // If there's a record but no last_clock_out, user is still clocked in
+        if (!record.last_clock_out) {
+          setIsClockedIn(true);
+          clockStateRef.current = true;
+          colorTransition.value = withTiming(1, { duration: 500 });
+          
+          // Set up the current session with the stored total work time
+          const currentDate = format(new Date(), 'yyyy-MM-dd');
+          const startTime = new Date(`${currentDate}T${record.first_clock_in}`);
+          setCurrentSession({
+            id: record.id,
+            startTime: startTime
+          });
+          setLastTotalWorkTime(record.total_hours_worked || "00:00:00");
+          setIsTrackingTime(true);
+        } else {
+          // User is clocked out, show last total work time
+          setLastTotalWorkTime(record.total_hours_worked || "00:00:00");
+          setTotalWorkTime(record.total_hours_worked || "00:00:00");
+        }
+      }
+    } catch (error) {
+      console.error('Error loading attendance:', error);
+    }
   };
 
-  const handleClockInOut = () => {
-    console.log(`Before state change: isClockedIn=${isClockedIn}, ref=${clockStateRef.current}`);
-    
-    // Use the current value of clockStateRef instead of isClockedIn
-    if (!clockStateRef.current) {
-      // CLOCK IN
-      const newSession = {
-        id: Date.now().toString(),
-        startTime: new Date(),
-      };
-      setCurrentSession(newSession);
-      setIsClockedIn(true);
-      clockStateRef.current = true;
-      // Transition to red color
-      colorTransition.value = withTiming(1, { duration: 500 });
-      console.log("Clocking IN - changed state to true");
-      Alert.alert('Success', 'You have clocked in successfully');
-    } else {
-      // CLOCK OUT
-      if (currentSession) {
-        setCurrentSession(null);
-        setIsClockedIn(false);
-        clockStateRef.current = false;
+  // Check for date change and store final work time
+  useEffect(() => {
+    const checkDateChange = () => {
+      const currentDate = format(new Date(), 'yyyy-MM-dd');
+      if (currentDate !== lastDateRef.current && isClockedIn) {
+        // Store final work time for the previous day
+        if (user) {
+          finalizeDayAttendance(user.id);
+        }
+        lastDateRef.current = currentDate;
+        // Reset states for new day
         setTotalWorkTime("00:00:00");
-        // Explicitly transition back to blue color
-        colorTransition.value = withTiming(0, { duration: 500 });
-        console.log("Clocking OUT - changed state to false");
-        Alert.alert('Success', 'You have clocked out successfully');
+        setLastTotalWorkTime("00:00:00");
+        setIsClockedIn(false);
+        setIsTrackingTime(false);
       }
+    };
+
+    const interval = setInterval(checkDateChange, 1000);
+    return () => clearInterval(interval);
+  }, [isClockedIn, user]);
+
+  // Add effect to check for midnight and reset attendance records
+  useEffect(() => {
+    // Function to check if it's midnight and reset attendance records
+    const checkMidnight = () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      
+      // Check if time is between 00:00 and 00:01
+      if (hours === 0 && minutes === 0) {
+        resetAttendanceForNewDay();
+      }
+    };
+    
+    // Check every minute
+    const intervalId = setInterval(checkMidnight, 60000);
+    
+    // Initial check
+    checkMidnight();
+    
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Add function to verify user ID
+  const verifyUserID = async () => {
+    if (!user || !user.id) {
+      Alert.alert('Error', 'User not authenticated or missing ID');
+      return false;
     }
     
-    // Give the state time to update before logging
-    setTimeout(() => {
-      console.log(`After state change: isClockedIn=${isClockedIn}, ref=${clockStateRef.current}`);
-    }, 100);
+    console.log('User object for verification:', JSON.stringify(user));
+    console.log('User ID for clock operations:', user.id);
+    console.log('User ID type:', typeof user.id);
+    
+    // Test if ID appears to be a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isValidUUID = uuidRegex.test(user.id);
+    
+    console.log('Is user ID a valid UUID format?', isValidUUID);
+    
+    if (!isValidUUID) {
+      Alert.alert('Error', 'User ID is not in valid UUID format required for attendance');
+      return false;
+    }
+    
+    return true;
+  };
+
+  const handleClockInOut = async () => {
+    if (!user) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    // Verify user ID before proceeding
+    if (!await verifyUserID()) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      if (!clockStateRef.current) {
+        // CLOCK IN
+        console.log('Attempting to clock in user:', user.id);
+        console.log('User object:', JSON.stringify(user));
+        let result;
+        
+        try {
+          // Always use first clock in for a new session
+          // This will create a new record if it's the first clock in of the day
+          result = await clockIn(user.id);
+          
+          if ('message' in result) {
+            console.error('Clock in error returned message:', result.message);
+            throw new Error(result.message);
+          }
+        } catch (clockInError) {
+          console.error('Clock in operation failed:', clockInError);
+          Alert.alert(
+            'Clock In Error', 
+            `Failed to clock in: ${clockInError instanceof Error ? clockInError.message : 'Unknown error'}. Please try again.`
+          );
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log('Clock in successful:', result);
+        const currentDate = format(new Date(), 'yyyy-MM-dd');
+        const newSession = {
+          id: result.id,
+          startTime: new Date(),
+        };
+        
+        setCurrentSession(newSession);
+        setIsClockedIn(true);
+        setIsTrackingTime(true);
+        clockStateRef.current = true;
+        colorTransition.value = withTiming(1, { duration: 500 });
+        Alert.alert('Success', 'You have clocked in successfully');
+      } else {
+        // CLOCK OUT
+        console.log('Attempting to clock out user:', user.id);
+        if (currentSession) {
+          try {
+            const result = await clockOut(user.id);
+            
+            if ('message' in result) {
+              console.error('Clock out error returned message:', result.message);
+              throw new Error(result.message);
+            }
+            
+            console.log('Clock out successful:', result);
+            setCurrentSession(null);
+            setIsClockedIn(false);
+            setIsTrackingTime(false);
+            if (result.total_hours_worked) {
+              setLastTotalWorkTime(result.total_hours_worked);
+              setTotalWorkTime(result.total_hours_worked);
+            }
+            clockStateRef.current = false;
+            colorTransition.value = withTiming(0, { duration: 500 });
+            Alert.alert('Success', 'You have clocked out successfully');
+          } catch (clockOutError) {
+            console.error('Clock out operation failed:', clockOutError);
+            Alert.alert(
+              'Clock Out Error', 
+              `Failed to clock out: ${clockOutError instanceof Error ? clockOutError.message : 'Unknown error'}. Please try again.`
+            );
+            setIsLoading(false);
+            return;
+          }
+        } else {
+          Alert.alert('Error', 'No active session found to clock out from.');
+        }
+      }
+    } catch (error) {
+      console.error('Error handling clock in/out:', error);
+      Alert.alert(
+        'Error',
+        `Failed to process clock in/out: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to handle logout with confirmation
+  const handleLogout = () => {
+    Alert.alert(
+      'Confirm Logout',
+      'Are you sure you want to log out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Logout',
+          onPress: async () => {
+            try {
+              await logout();
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Failed to log out');
+            }
+          },
+          style: 'destructive'
+        }
+      ]
+    );
   };
 
   const animatedBackgroundStyle = useAnimatedStyle(() => {
@@ -160,197 +388,201 @@ export default function HomeScreen() {
   });
 
   return (
-    <View style={{ flex: 1 }}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-      <LinearGradient
-        colors={['#0f172a', '#1e3a8a', '#2563eb']}
-        style={[styles.container, { paddingTop: insets.top + 25 }]}
-      >
-        <ScrollView 
-          style={styles.scrollView} 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollViewContent}
+    <ScrollView style={styles.container}>
+      <View style={styles.mainContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <LinearGradient
+          colors={['#0f172a', '#1e3a8a', '#2563eb']}
+          style={[styles.container, { paddingTop: insets.top + 25 }]}
         >
-          {/* Top Header Section */}
-          <View style={styles.topHeader}>
+          {/* Add Logo */}
+          <View style={styles.logoContainer}>
             <ThemedText style={styles.logoText}>
-              Zen<ThemedText style={styles.logoHighlight}>HR</ThemedText>
+              <ThemedText style={styles.logoHighlight}>Zen</ThemedText>HR
             </ThemedText>
-            <View style={styles.headerIcons}>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="notifications-outline" size={24} color="#ffffff" />
-                <View style={styles.notificationBadge} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
-                <Ionicons name="settings-outline" size={24} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Date and Time Section */}
-          <View style={styles.dateTimeSection}>
-            <ThemedText style={styles.timeText}>
-              {format(currentTime, 'hh:mm:ss a')}
-            </ThemedText>
-            <ThemedText style={styles.dateText}>
-              {format(currentTime, 'EEEE, MMMM d, yyyy')}
-            </ThemedText>
-          </View>
-
-          {/* Clock In/Out Section */}
-          <View style={styles.clockSection}>
-            <TouchableOpacity 
-              style={styles.clockButton}
-              onPress={handleClockInOut}
-            >
-              <LinearGradient
-                colors={isClockedIn 
-                  ? ['#ef4444', '#b91c1c'] // Light red to dark red when clocked in
-                  : ['#93c5fd', '#1e40af']} // Light blue to dark blue when clocked out
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-              
-              {/* Add an animated overlay for smooth color transitions */}
-              <Animated.View 
-                style={[
-                  StyleSheet.absoluteFill, 
-                  animatedBackgroundStyle
-                ]} 
-              />
-              
-              <ThemedText style={styles.clockButtonText}>
-                {isClockedIn 
-                  ? 'Clock Out' 
-                  : 'Clock In'}
-              </ThemedText>
-              <Ionicons 
-                name={isClockedIn ? 'log-out-outline' : 'log-in-outline'} 
-                size={24} 
-                color="#ffffff" 
-                style={styles.clockButtonIcon}
-              />
-            </TouchableOpacity>
             
-            <View style={styles.workTimeContainer}>
-              <ThemedText style={styles.workTimeLabel}>Total Work Time Today</ThemedText>
-              <ThemedText style={styles.workTimeText}>{totalWorkTime}</ThemedText>
-            </View>
+            {/* Logout button */}
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+            >
+              <Ionicons name="log-out-outline" size={24} color="#ffffff" />
+              <ThemedText style={styles.logoutButtonText}>Logout</ThemedText>
+            </TouchableOpacity>
+          </View>
 
-            {/* Debug text - shows both states for comparison */}
-            <View style={{marginTop: 5, alignItems: 'center'}}>
-              <ThemedText style={{fontSize: 12, color: '#ffffff', opacity: 0.7}}>
-                Current state: {isClockedIn ? 'Clocked In' : 'Clocked Out'} (Ref: {clockStateRef.current ? 'In' : 'Out'})
+          <ScrollView 
+            style={styles.scrollView} 
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollViewContent}
+          >
+            {/* Date and Time Section */}
+            <View style={styles.dateTimeSection}>
+              <ThemedText style={styles.timeText}>
+                {format(currentTime, 'hh:mm:ss a')}
+              </ThemedText>
+              <ThemedText style={styles.dateText}>
+                {format(currentTime, 'EEEE, MMMM d, yyyy')}
               </ThemedText>
             </View>
-          </View>
 
-          {/* Stats Section */}
-          <View style={styles.statsSection}>
-            <View style={[styles.statBox, { backgroundColor: '#f8fafc' }]}>
-              <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.presentDays}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Present Days</ThemedText>
-            </View>
-            <View style={[styles.statBox, { backgroundColor: '#dbeafe' }]}>
-              <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>
-                {stats.leavesTaken}/{stats.totalLeavesAllowed}
-              </ThemedText>
-              <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Leaves Taken</ThemedText>
-            </View>
-            <View style={[styles.statBox, { backgroundColor: '#fef3c7' }]}>
-              <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.tasksLeft}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Tasks Left</ThemedText>
-            </View>
-          </View>
-
-          {/* Announcements Section */}
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <ThemedText style={styles.sectionTitle}>Announcements</ThemedText>
-              <TouchableOpacity style={[styles.seeAllButton, { backgroundColor: 'rgba(255, 255, 255, 0.25)' }]}>
-                <ThemedText style={styles.seeAllText}>See All</ThemedText>
-              </TouchableOpacity>
-            </View>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              style={styles.announcementsScroll}
-              contentContainerStyle={styles.announcementsScrollContent}
-            >
-              {announcements.map((announcement, index) => (
-                <TouchableOpacity 
-                  key={announcement.id} 
-                  style={[
-                    styles.announcementCard, 
-                    { backgroundColor: index % 3 === 0 ? '#f1f5f9' : index % 3 === 1 ? '#e0f2fe' : '#fef3c7' }
-                  ]}
-                >
-                  <View style={styles.announcementContent}>
-                    <ThemedText style={styles.announcementTitle}>
-                      {announcement.title}
-                    </ThemedText>
-                    <ThemedText style={styles.announcementDesc}>
-                      {announcement.description}
-                    </ThemedText>
-                    <View style={styles.announcementFooter}>
-                      <ThemedText style={styles.announcementDate}>
-                        {format(new Date(announcement.date), 'MMM d, yyyy')}
-                      </ThemedText>
-                      <Ionicons name="chevron-forward" size={16} color="#1e3a8a" />
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Quick Actions Section */}
-          <View style={styles.sectionContainer}>
-            <ThemedText style={styles.sectionTitle}>Quick Actions</ThemedText>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              style={styles.quickActionsScroll}
-              contentContainerStyle={styles.quickActionsScrollContent}
-            >
+            {/* Clock In/Out Section */}
+            <View style={styles.clockSection}>
               <TouchableOpacity 
-                style={[styles.quickActionButton, { backgroundColor: '#f1f5f9' }]}
-                onPress={() => router.push('/user/apply-leave')}
+                style={[styles.clockButton, isLoading && styles.clockButtonDisabled]}
+                onPress={handleClockInOut}
+                disabled={isLoading}
               >
-                <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(56, 189, 248, 0.2)' }]}>
-                  <Ionicons name="calendar-outline" size={24} color="#1e3a8a" />
-                </View>
-                <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Apply Leave</ThemedText>
+                <LinearGradient
+                  colors={isClockedIn 
+                    ? ['#ef4444', '#b91c1c']
+                    : ['#93c5fd', '#1e40af']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                
+                <Animated.View 
+                  style={[
+                    StyleSheet.absoluteFill, 
+                    animatedBackgroundStyle
+                  ]} 
+                />
+                
+                {isLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <>
+                    <ThemedText style={styles.clockButtonText}>
+                      {isClockedIn 
+                        ? 'Clock Out' 
+                        : 'Clock In'}
+                    </ThemedText>
+                    <Ionicons 
+                      name={isClockedIn ? 'log-out-outline' : 'log-in-outline'} 
+                      size={24} 
+                      color="#ffffff" 
+                      style={styles.clockButtonIcon}
+                    />
+                  </>
+                )}
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#dbeafe' }]}>
-                <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(96, 165, 250, 0.2)' }]}>
-                  <Ionicons name="document-text-outline" size={24} color="#1e3a8a" />
-                </View>
-                <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Submit Report</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#fef3c7' }]}>
-                <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(251, 191, 36, 0.2)' }]}>
-                  <Ionicons name="people-outline" size={24} color="#1e3a8a" />
-                </View>
-                <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Team Chat</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#f0fdf4' }]}>
-                <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(74, 222, 128, 0.2)' }]}>
-                  <Ionicons name="help-circle-outline" size={24} color="#1e3a8a" />
-                </View>
-                <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Help Desk</ThemedText>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </ScrollView>
-      </LinearGradient>
-    </View>
+              
+              <View style={styles.workTimeContainer}>
+                <ThemedText style={styles.workTimeLabel}>Total Work Time Today</ThemedText>
+                <ThemedText style={styles.workTimeText}>{totalWorkTime}</ThemedText>
+              </View>
+            </View>
+
+            {/* Stats Section */}
+            <View style={styles.statsSection}>
+              <View style={[styles.statBox, { backgroundColor: '#f8fafc' }]}>
+                <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.presentDays}</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Present Days</ThemedText>
+              </View>
+              <View style={[styles.statBox, { backgroundColor: '#dbeafe' }]}>
+                <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>
+                  {stats.leavesTaken}/{stats.totalLeavesAllowed}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Leaves Taken</ThemedText>
+              </View>
+              <View style={[styles.statBox, { backgroundColor: '#fef3c7' }]}>
+                <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.tasksLeft}</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Tasks Left</ThemedText>
+              </View>
+            </View>
+
+            {/* Announcements Section */}
+            <View style={styles.sectionContainer}>
+              <View style={styles.sectionHeader}>
+                <ThemedText style={styles.sectionTitle}>Announcements</ThemedText>
+                <TouchableOpacity style={[styles.seeAllButton, { backgroundColor: 'rgba(255, 255, 255, 0.25)' }]}>
+                  <ThemedText style={styles.seeAllText}>See All</ThemedText>
+                </TouchableOpacity>
+              </View>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.announcementsScroll}
+                contentContainerStyle={styles.announcementsScrollContent}
+              >
+                {announcements.map((announcement, index) => (
+                  <TouchableOpacity 
+                    key={announcement.id} 
+                    style={[
+                      styles.announcementCard, 
+                      { backgroundColor: index % 3 === 0 ? '#f1f5f9' : index % 3 === 1 ? '#e0f2fe' : '#fef3c7' }
+                    ]}
+                  >
+                    <View style={styles.announcementContent}>
+                      <ThemedText style={styles.announcementTitle}>
+                        {announcement.title}
+                      </ThemedText>
+                      <ThemedText style={styles.announcementDesc}>
+                        {announcement.description}
+                      </ThemedText>
+                      <View style={styles.announcementFooter}>
+                        <ThemedText style={styles.announcementDate}>
+                          {format(new Date(announcement.date), 'MMM d, yyyy')}
+                        </ThemedText>
+                        <Ionicons name="chevron-forward" size={16} color="#1e3a8a" />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Quick Actions Section */}
+            <View style={styles.sectionContainer}>
+              <ThemedText style={styles.sectionTitle}>Quick Actions</ThemedText>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.quickActionsScroll}
+                contentContainerStyle={styles.quickActionsScrollContent}
+              >
+                <TouchableOpacity 
+                  style={[styles.quickActionButton, { backgroundColor: '#f1f5f9' }]}
+                  onPress={() => router.push('/user/apply-leave')}
+                >
+                  <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(56, 189, 248, 0.2)' }]}>
+                    <Ionicons name="calendar-outline" size={24} color="#1e3a8a" />
+                  </View>
+                  <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Apply Leave</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#dbeafe' }]}>
+                  <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(96, 165, 250, 0.2)' }]}>
+                    <Ionicons name="document-text-outline" size={24} color="#1e3a8a" />
+                  </View>
+                  <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Submit Report</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#fef3c7' }]}>
+                  <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(251, 191, 36, 0.2)' }]}>
+                    <Ionicons name="people-outline" size={24} color="#1e3a8a" />
+                  </View>
+                  <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Team Chat</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#f0fdf4' }]}>
+                  <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(74, 222, 128, 0.2)' }]}>
+                    <Ionicons name="help-circle-outline" size={24} color="#1e3a8a" />
+                  </View>
+                  <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Help Desk</ThemedText>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </ScrollView>
+        </LinearGradient>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  mainContainer: {
     flex: 1,
   },
   scrollView: {
@@ -367,8 +599,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 10,
   },
+  logoContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+  },
   logoText: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '800',
     color: '#ffffff',
     letterSpacing: 1,
@@ -608,4 +844,28 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
     textAlign: 'center',
   },
+  clockButtonDisabled: {
+    opacity: 0.7,
+  },
+  logoutButton: {
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  logoutButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    marginLeft: 10,
+  },
 });
+
+// Use withAuth to protect this screen
+export default withAuth(HomeScreen);
