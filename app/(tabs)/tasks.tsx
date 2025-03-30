@@ -1,13 +1,13 @@
-import { StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import React from 'react';
 import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import { withAuth } from '@/lib/auth/AuthContext';
 
-export default function TasksScreen() {
+function TasksScreen() {
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title">Tasks</ThemedText>
-      <ThemedText>Task management features coming soon</ThemedText>
-    </ThemedView>
+    <View style={styles.container}>
+      <ThemedText style={styles.title}>Tasks</ThemedText>
+    </View>
   );
 }
 
@@ -16,6 +16,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    backgroundColor: '#0f172a',
   },
-}); 
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+});
+
+export default withAuth(TasksScreen); 

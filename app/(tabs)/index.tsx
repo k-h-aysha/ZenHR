@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, TouchableOpacity, ScrollView, View, Dimensions, Alert, StatusBar, Platform, Modal } from 'react-native';
 import { format } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, interpolateColor, useDerivedValue, withSpring } from 'react-native-reanimated';
-import { useAuth } from '../../lib/auth/AuthContext';
+import { useAuth, withAuth } from '../../lib/auth/AuthContext';
 
 import { ThemedText } from '@/components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,7 +26,7 @@ type Announcement = {
   date: string;
 };
 
-export default function HomeScreen() {
+function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isClockedIn, setIsClockedIn] = useState(false);
@@ -377,12 +377,17 @@ export default function HomeScreen() {
                 </View>
                 <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Apply Leave</ThemedText>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#dbeafe' }]}>
+              
+              <TouchableOpacity 
+                style={[styles.quickActionButton, { backgroundColor: '#dbeafe' }]}
+                onPress={() => router.push('/user/services')}
+              >
                 <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(96, 165, 250, 0.2)' }]}>
-                  <Ionicons name="document-text-outline" size={24} color="#1e3a8a" />
+                  <Ionicons name="grid-outline" size={24} color="#1e3a8a" />
                 </View>
-                <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Submit Report</ThemedText>
+                <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Services</ThemedText>
               </TouchableOpacity>
+              
               <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#fef3c7' }]}>
                 <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(251, 191, 36, 0.2)' }]}>
                   <Ionicons name="people-outline" size={24} color="#1e3a8a" />
@@ -404,6 +409,8 @@ export default function HomeScreen() {
     </View>
   );
 }
+
+export default withAuth(HomeScreen);
 
 const styles = StyleSheet.create({
   container: {
@@ -706,5 +713,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 10,
+  },
+  servicesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: '#38bdf8',
+  },
+  servicesButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 5,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
 });

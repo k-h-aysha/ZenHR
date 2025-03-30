@@ -47,8 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Simple approach: always navigate based on auth state
       if (user) {
-        // If user is logged in, go to home
-        router.replace('/user/home');
+        // If user is logged in, go to tabs layout
+        router.replace('/(tabs)');
       } else {
         // If user is not logged in, go to login
         router.replace('/auth/login');
@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Logging in with user data:', userData);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
-      router.replace('/user/home');
+      router.replace('/(tabs)');
       console.log('User logged in successfully');
     } catch (error) {
       console.error('Error saving user data:', error);
