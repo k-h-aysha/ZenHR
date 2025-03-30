@@ -101,4 +101,63 @@ export const signOutUser = async () => {
   // Since we're not using Supabase auth, this function can be used
   // to clear any local session state if needed
   return { error: null as SupabaseError | null };
+};
+
+// Submit leave request
+export const submitLeaveRequest = async (
+  employeeId: string,
+  leaveType: string,
+  fromDate: Date,
+  toDate: Date,
+  dayPart: string,
+  duration: string,
+  reason: string
+) => {
+  try {
+    console.log('Submitting leave request with data:', {
+      employeeId,
+      leaveType,
+      fromDate,
+      toDate,
+      dayPart,
+      duration,
+      reason
+    });
+
+    // Ensure the dates are in ISO format for Supabase
+    const fromDateISO = fromDate.toISOString();
+    const toDateISO = toDate.toISOString();
+
+    const { data, error } = await supabase
+      .from('leave_requests')
+      .insert([
+        {
+          employee_id: employeeId,
+          leave_type: leaveType,
+          from_date: fromDateISO,
+          to_date: toDateISO,
+          day_part: dayPart,
+          duration: duration,
+          reason: reason,
+          status: 'pending'
+        }
+      ])
+      .select();
+
+    if (error) {
+      console.error('Error submitting leave request:', error);
+      throw error;
+    }
+
+    console.log('Leave request submitted successfully:', data);
+    return { data, error: null };
+  } catch (error) {
+    console.error('Failed to submit leave request:', error);
+    return { 
+      data: null, 
+      error: { 
+        message: error instanceof Error ? error.message : 'Failed to submit leave request' 
+      } as SupabaseError 
+    };
+  }
 }; 

@@ -1,88 +1,85 @@
-import React from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { supabase } from '@/lib/supabase';
 
-// Mock data for leave history
-const leaveHistory = [
-  { 
-    id: '1', 
-    type: 'Annual Leave', 
-    dates: 'Jan 15-17, 2023', 
-    duration: '3 days',
-    reason: 'Family vacation',
-    status: 'Approved' 
-  },
-  { 
-    id: '2', 
-    type: 'Sick Leave', 
-    dates: 'Feb 05, 2023', 
-    duration: '1 day',
-    reason: 'Fever and cold',
-    status: 'Approved' 
-  },
-  { 
-    id: '3', 
-    type: 'Personal Leave', 
-    dates: 'Mar 22, 2023', 
-    duration: 'Half day (PM)',
-    reason: 'Doctor appointment',
-    status: 'Approved' 
-  },
-  { 
-    id: '4', 
-    type: 'Annual Leave', 
-    dates: 'Apr 10-14, 2023', 
-    duration: '5 days',
-    reason: 'Family event',
-    status: 'Rejected' 
-  },
-  { 
-    id: '5', 
-    type: 'Unpaid Leave', 
-    dates: 'May 29-30, 2023', 
-    duration: '2 days',
-    reason: 'Personal matters',
-    status: 'Pending' 
-  },
-];
-
-// Stats data
-const stats = {
-  presentDays: 221,
-  leavesTaken: 11,
-  workingDays: 232,
-};
-
-// Leave status badge component
-const StatusBadge = ({ status }: { status: string }) => {
-  let backgroundColor;
-  let textColor = '#ffffff';
-  
-  switch(status) {
-    case 'Approved':
-      backgroundColor = '#10b981'; // emerald/green
-      break;
-    case 'Rejected':
-      backgroundColor = '#ef4444'; // red
-      break;
-    case 'Pending':
-      backgroundColor = '#f59e0b'; // amber/yellow
-      break;
-    default:
-      backgroundColor = '#6b7280'; // gray
-  }
-  
-  return (
-    <View style={[styles.statusBadge, { backgroundColor }]}>
-      <ThemedText style={[styles.statusText, { color: textColor }]}>{status}</ThemedText>
-    </View>
-  );
+type LeaveRequest = {
+  id: string;
+  leave_type: string;
+  from_date: string;
+  to_date: string;
+  day_part: string;
+  duration: string;
+  status: string;
+  reason: string;
+  created_at: string;
 };
 
 export default function LeaveHistoryScreen() {
+  const { user } = useAuth();
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchLeaveRequests = async () => {
+    if (!user || !user.id) return;
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .eq('employee_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching leave requests:', error);
+        return;
+      }
+
+      setLeaveRequests(data || []);
+    } catch (error) {
+      console.error('Error in fetchLeaveRequests:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeaveRequests();
+  }, [user]);
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await fetchLeaveRequests();
+    setRefreshing(false);
+  }, []);
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return '#fbbf24';
+      case 'approved':
+        return '#22c55e';
+      case 'rejected':
+        return '#ef4444';
+      default:
+        return '#64748b';
+    }
+  };
+
   return (
     <LinearGradient
       colors={['#1e3a8a', '#0f172a']}
@@ -100,45 +97,84 @@ export default function LeaveHistoryScreen() {
         <ThemedText style={styles.headerTitle}>Leave History</ThemedText>
         <View style={{ width: 40 }} />
       </View>
-      
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#ffffff"
+            colors={['#3b82f6']}
+          />
+        }
       >
-        {/* Stats Cards */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <ThemedText style={styles.statNumber}>{stats.presentDays}</ThemedText>
-            <ThemedText style={styles.statLabel}>Present Days</ThemedText>
+        {loading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <ThemedText style={styles.loadingText}>Loading leave requests...</ThemedText>
           </View>
-          
-          <View style={styles.statCard}>
-            <ThemedText style={styles.statNumber}>{stats.leavesTaken}</ThemedText>
-            <ThemedText style={styles.statLabel}>Leaves Taken</ThemedText>
+        ) : leaveRequests.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="calendar-outline" size={48} color="#94a3b8" />
+            <ThemedText style={styles.emptyText}>No leave requests found</ThemedText>
+            <TouchableOpacity
+              style={styles.applyButton}
+              onPress={() => router.push('/user/apply-leave')}
+            >
+              <ThemedText style={styles.applyButtonText}>Apply for Leave</ThemedText>
+            </TouchableOpacity>
           </View>
-          
-          <View style={styles.statCard}>
-            <ThemedText style={styles.statNumber}>{stats.workingDays}</ThemedText>
-            <ThemedText style={styles.statLabel}>Working Days</ThemedText>
-          </View>
-        </View>
-        
-        <ThemedText style={styles.sectionTitle}>Recent Leave Requests</ThemedText>
-        
-        {/* Leave History List */}
-        <View style={styles.leaveHistoryContainer}>
-          {leaveHistory.map(leave => (
-            <View key={leave.id} style={styles.leaveItem}>
-              <View style={styles.leaveInfo}>
-                <ThemedText style={styles.leaveType}>{leave.type}</ThemedText>
-                <ThemedText style={styles.leaveDates}>{leave.dates} ({leave.duration})</ThemedText>
-                <ThemedText style={styles.leaveReason}>{leave.reason}</ThemedText>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={styles.newRequestButton}
+              onPress={() => router.push('/user/apply-leave')}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
+              <ThemedText style={styles.newRequestButtonText}>New Request</ThemedText>
+            </TouchableOpacity>
+
+            {leaveRequests.map((leave) => (
+              <View key={leave.id} style={styles.leaveCard}>
+                <View style={styles.cardHeader}>
+                  <ThemedText style={styles.leaveType}>{leave.leave_type}</ThemedText>
+                  <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(leave.status)}20` }]}>
+                    <ThemedText style={[styles.statusText, { color: getStatusColor(leave.status) }]}>
+                      {leave.status}
+                    </ThemedText>
+                  </View>
+                </View>
+
+                <View style={styles.cardBody}>
+                  <View style={styles.dateRow}>
+                    <View style={styles.dateItem}>
+                      <ThemedText style={styles.dateLabel}>From</ThemedText>
+                      <ThemedText style={styles.dateValue}>{formatDate(leave.from_date)}</ThemedText>
+                    </View>
+                    <View style={styles.dateItem}>
+                      <ThemedText style={styles.dateLabel}>To</ThemedText>
+                      <ThemedText style={styles.dateValue}>{formatDate(leave.to_date)}</ThemedText>
+                    </View>
+                    <View style={styles.dateItem}>
+                      <ThemedText style={styles.dateLabel}>Duration</ThemedText>
+                      <ThemedText style={styles.dateValue}>{leave.duration}</ThemedText>
+                    </View>
+                  </View>
+
+                  {leave.reason && (
+                    <View style={styles.reasonContainer}>
+                      <ThemedText style={styles.reasonLabel}>Reason:</ThemedText>
+                      <ThemedText style={styles.reasonText}>{leave.reason}</ThemedText>
+                    </View>
+                  )}
+                </View>
               </View>
-              <StatusBadge status={leave.status} />
-            </View>
-          ))}
-        </View>
+            ))}
+          </>
+        )}
       </ScrollView>
     </LinearGradient>
   );
@@ -155,11 +191,10 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 20,
-    marginTop: 10,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#ffffff',
   },
   backButton: {
@@ -177,88 +212,115 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
+  },
+  loadingText: {
+    color: '#94a3b8',
+    marginTop: 16,
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 100,
+  },
+  emptyText: {
+    color: '#94a3b8',
+    marginTop: 16,
+    fontSize: 16,
     marginBottom: 24,
   },
-  statCard: {
-    width: '31%',
-    backgroundColor: '#f8fafc', // White-like color (very light gray)
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 0,
-    // Removing shadow properties
-    shadowColor: 'transparent',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
+  applyButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0f172a', // Darker color for better contrast on white background
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#3b82f6', // Blue color that will contrast well with white background
-    textAlign: 'center',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
+  applyButtonText: {
     color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 16,
   },
-  leaveHistoryContainer: {
+  newRequestButton: {
+    backgroundColor: '#3b82f6',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 8,
     marginBottom: 20,
   },
-  leaveItem: {
-    backgroundColor: 'transparent', // Transparent background
+  newRequestButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  leaveCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1, // Add border
-    borderColor: '#93c5fd', // Light blue border color
-    // Removing shadow properties
-    shadowColor: 'transparent',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-  },
-  leaveInfo: {
-    flex: 1,
+    marginBottom: 16,
   },
   leaveType: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#ffffff',
-    marginBottom: 4,
-  },
-  leaveDates: {
-    fontSize: 14,
-    color: '#e0f2fe',
-    marginBottom: 2,
-  },
-  leaveReason: {
-    fontSize: 13,
-    color: '#94a3b8',
   },
   statusBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 4,
     borderRadius: 16,
-    alignSelf: 'flex-start',
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-  }
+  },
+  cardBody: {
+    flex: 1,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  dateItem: {
+    flex: 1,
+  },
+  dateLabel: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 4,
+  },
+  dateValue: {
+    fontSize: 14,
+    color: '#ffffff',
+  },
+  reasonContainer: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 8,
+  },
+  reasonLabel: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 4,
+  },
+  reasonText: {
+    fontSize: 14,
+    color: '#ffffff',
+  },
 }); 
