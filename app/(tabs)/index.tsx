@@ -291,13 +291,6 @@ function HomeScreen() {
               <ThemedText style={styles.workTimeLabel}>Total Work Time Today</ThemedText>
               <ThemedText style={styles.workTimeText}>{totalWorkTime}</ThemedText>
             </View>
-
-            {/* Debug text - shows both states for comparison */}
-            <View style={{marginTop: 5, alignItems: 'center'}}>
-              <ThemedText style={{fontSize: 12, color: '#ffffff', opacity: 0.7}}>
-                Current state: {isClockedIn ? 'Clocked In' : 'Clocked Out'} (Ref: {clockStateRef.current ? 'In' : 'Out'})
-              </ThemedText>
-            </View>
           </View>
 
           {/* Stats Section */}

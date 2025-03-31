@@ -48,7 +48,8 @@ type SupabaseError = AuthError | PostgrestError;
 // Helper functions for authentication
 export const signUpUser = async (email: string, password: string, name: string, role: string = 'user') => {
   try {
-    const { error } = await supabase
+    // Create user in our users table
+    const { data, error } = await supabase
       .from('users')
       .insert([
         {
@@ -58,12 +59,30 @@ export const signUpUser = async (email: string, password: string, name: string, 
           role: role,
           created_at: new Date().toISOString(),
         },
-      ]);
+      ])
+      .select()
+      .single();
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
+
+    // Store the user session in AsyncStorage
+    await AsyncStorage.setItem('user_session', JSON.stringify({
+      id: data.id,
+      email: data.email,
+      full_name: data.full_name,
+      role: data.role,
+      last_login: new Date().toISOString()
+    }));
 
     return {
-      data: { email, full_name: name, role },
+      data: { 
+        email, 
+        full_name: name, 
+        role,
+        id: data.id 
+      },
       error: null as SupabaseError | null,
       message: 'Account created successfully',
     };
@@ -74,6 +93,7 @@ export const signUpUser = async (email: string, password: string, name: string, 
 
 export const signInUser = async (email: string, password: string) => {
   try {
+    // Get user from our users table
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
@@ -84,6 +104,15 @@ export const signInUser = async (email: string, password: string) => {
     if (error || !user) {
       throw new Error('Invalid email or password');
     }
+
+    // Store the user session in AsyncStorage
+    await AsyncStorage.setItem('user_session', JSON.stringify({
+      id: user.id,
+      email: user.email,
+      full_name: user.full_name,
+      role: user.role,
+      last_login: new Date().toISOString()
+    }));
 
     return { 
       data: { user }, 
@@ -98,9 +127,13 @@ export const signInUser = async (email: string, password: string) => {
 };
 
 export const signOutUser = async () => {
-  // Since we're not using Supabase auth, this function can be used
-  // to clear any local session state if needed
-  return { error: null as SupabaseError | null };
+  try {
+    // Remove the user session from AsyncStorage
+    await AsyncStorage.removeItem('user_session');
+    return { error: null as SupabaseError | null };
+  } catch (error) {
+    return { error: error as SupabaseError };
+  }
 };
 
 // Submit leave request
@@ -159,5 +192,19 @@ export const submitLeaveRequest = async (
         message: error instanceof Error ? error.message : 'Failed to submit leave request' 
       } as SupabaseError 
     };
+  }
+};
+
+// Get current user session
+export const getCurrentUser = async () => {
+  try {
+    const sessionData = await AsyncStorage.getItem('user_session');
+    if (!sessionData) {
+      return null;
+    }
+    return JSON.parse(sessionData);
+  } catch (error) {
+    console.error('Error getting current user:', error);
+    return null;
   }
 }; 

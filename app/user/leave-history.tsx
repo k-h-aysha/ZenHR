@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 
 type LeaveRequest = {
   id: string;
+  employee_id: string;
   leave_type: string;
   from_date: string;
   to_date: string;
@@ -19,11 +20,66 @@ type LeaveRequest = {
   created_at: string;
 };
 
+// Stats data structure
+type StatsData = {
+  presentDays: number;
+  leavesTaken: number;
+  workingDays: number;
+};
+
+// Leave status badge component
+const StatusBadge = ({ status }: { status: string }) => {
+  let backgroundColor;
+  let textColor = '#ffffff';
+  
+  switch(status.toLowerCase()) {
+    case 'approved':
+      backgroundColor = '#10b981'; // emerald/green
+      break;
+    case 'rejected':
+      backgroundColor = '#ef4444'; // red
+      break;
+    case 'pending':
+      backgroundColor = '#f59e0b'; // amber/yellow
+      break;
+    default:
+      backgroundColor = '#6b7280'; // gray
+  }
+  
+  return (
+    <View style={[styles.statusBadge, { backgroundColor }]}>
+      <ThemedText style={[styles.statusText, { color: textColor }]}>{status.charAt(0).toUpperCase() + status.slice(1)}</ThemedText>
+    </View>
+  );
+};
+
+// Filter button component
+const FilterButton = ({ title, isActive, onPress }: { title: string; isActive: boolean; onPress: () => void }) => (
+  <TouchableOpacity 
+    style={[styles.filterButton, isActive && styles.activeFilterButton]} 
+    onPress={onPress}
+  >
+    <ThemedText style={[styles.filterButtonText, isActive && styles.activeFilterButtonText]}>
+      {title}
+    </ThemedText>
+  </TouchableOpacity>
+);
+
 export default function LeaveHistoryScreen() {
   const { user } = useAuth();
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [filteredLeaveRequests, setFilteredLeaveRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState<StatsData>({
+    presentDays: 0,
+    leavesTaken: 0,
+    workingDays: 0
+  });
+  const [activeFilter, setActiveFilter] = useState('All');
+
+  // Available filters
+  const filters = ['All', 'Annual', 'Sick', 'Personal', 'Family', 'Other'];
 
   const fetchLeaveRequests = async () => {
     if (!user || !user.id) return;
@@ -41,12 +97,30 @@ export default function LeaveHistoryScreen() {
         return;
       }
 
-      setLeaveRequests(data || []);
+      const leaves = data || [];
+      setLeaveRequests(leaves);
+      setFilteredLeaveRequests(leaves);
+      
+      // Calculate stats
+      calculateStats(leaves);
     } catch (error) {
       console.error('Error in fetchLeaveRequests:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const calculateStats = (leaves: LeaveRequest[]) => {
+    const leavesTaken = leaves.length;
+    // This is a simplified calculation - in a real app, you'd compute this based on work calendar
+    const workingDays = 230; // Assuming ~230 working days in a year
+    const presentDays = workingDays - leavesTaken;
+
+    setStats({
+      presentDays,
+      leavesTaken,
+      workingDays
+    });
   };
 
   useEffect(() => {
@@ -59,25 +133,32 @@ export default function LeaveHistoryScreen() {
     setRefreshing(false);
   }, []);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+  const handleFilter = (filter: string) => {
+    setActiveFilter(filter);
+    
+    if (filter === 'All') {
+      setFilteredLeaveRequests(leaveRequests);
+      return;
+    }
+    
+    const filtered = leaveRequests.filter(leave => 
+      leave.leave_type.toLowerCase().includes(filter.toLowerCase())
+    );
+    setFilteredLeaveRequests(filtered);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'pending':
-        return '#fbbf24';
-      case 'approved':
-        return '#22c55e';
-      case 'rejected':
-        return '#ef4444';
-      default:
-        return '#64748b';
+  const formatDateRange = (fromDate: string, toDate: string) => {
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    
+    const fromMonth = from.toLocaleString('en-US', { month: 'short' });
+    const toMonth = to.toLocaleString('en-US', { month: 'short' });
+    
+    if (fromMonth === toMonth && from.getFullYear() === to.getFullYear()) {
+      return `${fromMonth} ${from.getDate()}-${to.getDate()}, ${from.getFullYear()}`;
     }
+    
+    return `${fromMonth} ${from.getDate()}, ${from.getFullYear()} - ${toMonth} ${to.getDate()}, ${to.getFullYear()}`;
   };
 
   return (
@@ -97,7 +178,7 @@ export default function LeaveHistoryScreen() {
         <ThemedText style={styles.headerTitle}>Leave History</ThemedText>
         <View style={{ width: 40 }} />
       </View>
-
+      
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContent}
@@ -116,63 +197,85 @@ export default function LeaveHistoryScreen() {
             <ActivityIndicator size="large" color="#3b82f6" />
             <ThemedText style={styles.loadingText}>Loading leave requests...</ThemedText>
           </View>
-        ) : leaveRequests.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="calendar-outline" size={48} color="#94a3b8" />
-            <ThemedText style={styles.emptyText}>No leave requests found</ThemedText>
-            <TouchableOpacity
-              style={styles.applyButton}
-              onPress={() => router.push('/user/apply-leave')}
-            >
-              <ThemedText style={styles.applyButtonText}>Apply for Leave</ThemedText>
-            </TouchableOpacity>
-          </View>
         ) : (
           <>
-            <TouchableOpacity
-              style={styles.newRequestButton}
-              onPress={() => router.push('/user/apply-leave')}
-            >
-              <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
-              <ThemedText style={styles.newRequestButtonText}>New Request</ThemedText>
-            </TouchableOpacity>
-
-            {leaveRequests.map((leave) => (
-              <View key={leave.id} style={styles.leaveCard}>
-                <View style={styles.cardHeader}>
-                  <ThemedText style={styles.leaveType}>{leave.leave_type}</ThemedText>
-                  <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(leave.status)}20` }]}>
-                    <ThemedText style={[styles.statusText, { color: getStatusColor(leave.status) }]}>
-                      {leave.status}
-                    </ThemedText>
-                  </View>
-                </View>
-
-                <View style={styles.cardBody}>
-                  <View style={styles.dateRow}>
-                    <View style={styles.dateItem}>
-                      <ThemedText style={styles.dateLabel}>From</ThemedText>
-                      <ThemedText style={styles.dateValue}>{formatDate(leave.from_date)}</ThemedText>
-                    </View>
-                    <View style={styles.dateItem}>
-                      <ThemedText style={styles.dateLabel}>To</ThemedText>
-                      <ThemedText style={styles.dateValue}>{formatDate(leave.to_date)}</ThemedText>
-                    </View>
-                    <View style={styles.dateItem}>
-                      <ThemedText style={styles.dateLabel}>Duration</ThemedText>
-                      <ThemedText style={styles.dateValue}>{leave.duration}</ThemedText>
-                    </View>
-                  </View>
-
-                  {leave.reason && (
-                    <View style={styles.reasonContainer}>
-                      <ThemedText style={styles.reasonLabel}>Reason:</ThemedText>
-                      <ThemedText style={styles.reasonText}>{leave.reason}</ThemedText>
-                    </View>
-                  )}
-                </View>
+            {/* Stats Cards */}
+            <View style={styles.statsContainer}>
+              <View style={styles.statCard}>
+                <ThemedText style={styles.statNumber}>{stats.presentDays}</ThemedText>
+                <ThemedText style={styles.statLabel}>Present Days</ThemedText>
               </View>
-            ))}
+              
+              <View style={styles.statCard}>
+                <ThemedText style={styles.statNumber}>{stats.leavesTaken}</ThemedText>
+                <ThemedText style={styles.statLabel}>Leaves Taken</ThemedText>
+              </View>
+              
+              <View style={styles.statCard}>
+                <ThemedText style={styles.statNumber}>{stats.workingDays}</ThemedText>
+                <ThemedText style={styles.statLabel}>Working Days</ThemedText>
+              </View>
+            </View>
+            
+            {/* Filter Buttons */}
+            <View style={styles.filterContainer}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.filterScrollContent}
+              >
+                {filters.map((filter) => (
+                  <FilterButton
+                    key={filter}
+                    title={filter}
+                    isActive={activeFilter === filter}
+                    onPress={() => handleFilter(filter)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+            
+            <ThemedText style={styles.sectionTitle}>Recent Leave Requests</ThemedText>
+            
+            {filteredLeaveRequests.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="calendar-outline" size={48} color="#94a3b8" />
+                <ThemedText style={styles.emptyText}>No leave requests found</ThemedText>
+                <TouchableOpacity
+                  style={styles.applyButton}
+                  onPress={() => router.push('/user/apply-leave')}
+                >
+                  <ThemedText style={styles.applyButtonText}>Apply for Leave</ThemedText>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                {/* New Request Button */}
+                <TouchableOpacity
+                  style={styles.newRequestButton}
+                  onPress={() => router.push('/user/apply-leave')}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
+                  <ThemedText style={styles.newRequestButtonText}>New Request</ThemedText>
+                </TouchableOpacity>
+                
+                {/* Leave History List */}
+                <View style={styles.leaveHistoryContainer}>
+                  {filteredLeaveRequests.map(leave => (
+                    <View key={leave.id} style={styles.leaveItem}>
+                      <View style={styles.leaveInfo}>
+                        <ThemedText style={styles.leaveType}>{leave.leave_type}</ThemedText>
+                        <ThemedText style={styles.leaveDates}>
+                          {formatDateRange(leave.from_date, leave.to_date)} ({leave.duration})
+                        </ThemedText>
+                        <ThemedText style={styles.leaveReason}>{leave.reason}</ThemedText>
+                      </View>
+                      <StatusBadge status={leave.status} />
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
           </>
         )}
       </ScrollView>
@@ -191,10 +294,11 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 20,
+    marginTop: 10,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#ffffff',
   },
   backButton: {
@@ -223,11 +327,70 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  statCard: {
+    width: '31%',
+    backgroundColor: '#f8fafc', // White-like color (very light gray)
+    borderRadius: 12,
+    padding: 16,
     alignItems: 'center',
-    paddingVertical: 100,
+    borderWidth: 0,
+    // Removing shadow properties
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0f172a', // Darker color for better contrast on white background
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#3b82f6', // Blue color that will contrast well with white background
+    textAlign: 'center',
+  },
+  filterContainer: {
+    marginBottom: 20,
+  },
+  filterScrollContent: {
+    paddingVertical: 5,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  activeFilterButton: {
+    backgroundColor: '#3b82f6',
+  },
+  filterButtonText: {
+    color: '#94a3b8',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  activeFilterButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    color: '#ffffff',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
   },
   emptyText: {
     color: '#94a3b8',
@@ -261,66 +424,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 8,
   },
-  leaveCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  leaveHistoryContainer: {
+    marginBottom: 20,
+  },
+  leaveItem: {
+    backgroundColor: 'transparent', // Transparent background
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  cardHeader: {
+    marginBottom: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    borderWidth: 1, // Add border
+    borderColor: '#93c5fd', // Light blue border color
+    // Removing shadow properties
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  leaveInfo: {
+    flex: 1,
   },
   leaveType: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+    marginBottom: 4,
+  },
+  leaveDates: {
+    fontSize: 14,
+    color: '#e0f2fe',
+    marginBottom: 2,
+  },
+  leaveReason: {
+    fontSize: 13,
+    color: '#94a3b8',
   },
   statusBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 16,
+    alignSelf: 'flex-start',
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-  },
-  cardBody: {
-    flex: 1,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  dateItem: {
-    flex: 1,
-  },
-  dateLabel: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginBottom: 4,
-  },
-  dateValue: {
-    fontSize: 14,
-    color: '#ffffff',
-  },
-  reasonContainer: {
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: 8,
-  },
-  reasonLabel: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginBottom: 4,
-  },
-  reasonText: {
-    fontSize: 14,
-    color: '#ffffff',
-  },
+  }
 }); 
