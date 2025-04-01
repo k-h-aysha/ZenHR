@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, Platform } from 'react-native';
-import { ThemedText } from '@/components/ThemedText';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { ThemedText } from '../../components/ThemedText';
+import { useColorScheme } from '../../hooks/useColorScheme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
@@ -162,6 +162,7 @@ export default function ServicesScreen() {
             title="Team"
             icon="people"
             description="View your team members and structure"
+            route="/user/team"
             colorTheme="rose"
           />
           
