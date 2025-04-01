@@ -102,11 +102,12 @@ function CalendarScreen() {
 
   const fetchEvents = async (userId: string) => {
     try {
-      // Fetch events from calendar_events table
+      // Fetch events where the user_id array contains the current user's ID
+      // or if the event is public
       const { data, error } = await supabase
         .from('calendar_events')
         .select('*')
-        .or(`user_id.eq.${userId},is_public.eq.true`);
+        .or(`user_id.cs.{${userId}},is_public.eq.true`);
       
       if (error) {
         throw error;
@@ -345,6 +346,72 @@ function CalendarScreen() {
         </View>
       </View>
     );
+  };
+
+  const saveReminder = async () => {
+    if (!newReminder.title.trim()) {
+      Alert.alert('Error', 'Please enter a title for your reminder');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Prepare data for inserting into the database
+      const eventData = {
+        title: newReminder.title,
+        description: newReminder.description || null,
+        start_date: newReminder.start_date,
+        end_date: newReminder.hasEndDate ? newReminder.end_date : newReminder.start_date,
+        start_time: newReminder.addTime ? `${newReminder.start_date}T${newReminder.start_time}:00` : null,
+        end_time: newReminder.addTime ? `${newReminder.start_date}T${newReminder.end_time}:00` : null,
+        type: newReminder.type,
+        is_all_day: !newReminder.addTime,
+        user_id: [userId], // Store user_id as an array
+        is_public: newReminder.is_public
+      };
+
+      // Insert into database
+      const { data, error } = await supabase
+        .from('calendar_events')
+        .insert(eventData)
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
+        // Update local state with the new event
+        const updatedEvents = [...events, data];
+        setEvents(updatedEvents);
+        updateMarkedDates(updatedEvents);
+        
+        // Reset form
+        setNewReminder({ 
+          title: '', 
+          description: '', 
+          is_all_day: true, 
+          addTime: false,
+          start_time: format(new Date().setHours(9, 0, 0, 0), 'HH:mm'),
+          end_time: format(new Date().setHours(10, 0, 0, 0), 'HH:mm'),
+          hasEndDate: false,
+          end_date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+          start_date: format(new Date(), 'yyyy-MM-dd'),
+          type: 'reminder',
+          is_public: false
+        });
+        
+        // Close modal
+        setIsAddReminderModalVisible(false);
+      }
+    } catch (error) {
+      console.error('Error saving reminder:', error);
+      Alert.alert('Error', 'Failed to save reminder. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -682,71 +749,7 @@ function CalendarScreen() {
               
               <TouchableOpacity 
                 style={styles.saveButton}
-                onPress={async () => {
-                  if (!newReminder.title.trim()) {
-                    Alert.alert('Error', 'Please enter a title for your reminder');
-                    return;
-                  }
-                  
-                  try {
-                    setLoading(true);
-                    
-                    // Prepare data for inserting into the database
-                    const eventData = {
-                      title: newReminder.title,
-                      description: newReminder.description || null,
-                      start_date: newReminder.start_date,
-                      end_date: newReminder.hasEndDate ? newReminder.end_date : newReminder.start_date,
-                      start_time: newReminder.addTime ? `${newReminder.start_date}T${newReminder.start_time}:00` : null,
-                      end_time: newReminder.addTime ? `${newReminder.start_date}T${newReminder.end_time}:00` : null,
-                      type: newReminder.type,
-                      is_all_day: !newReminder.addTime,
-                      user_id: userId,
-                      is_public: newReminder.is_public
-                    };
-
-                    // Insert into database
-                    const { data, error } = await supabase
-                      .from('calendar_events')
-                      .insert(eventData)
-                      .select()
-                      .single();
-                    
-                    if (error) {
-                      throw error;
-                    }
-                    
-                    if (data) {
-                      // Update local state with the new event
-                      const updatedEvents = [...events, data];
-                      setEvents(updatedEvents);
-                      updateMarkedDates(updatedEvents);
-                      
-                      // Reset form
-                      setNewReminder({ 
-                        title: '', 
-                        description: '', 
-                        is_all_day: true, 
-                        addTime: false,
-                        start_time: format(new Date().setHours(9, 0, 0, 0), 'HH:mm'),
-                        end_time: format(new Date().setHours(10, 0, 0, 0), 'HH:mm'),
-                        hasEndDate: false,
-                        end_date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-                        start_date: format(new Date(), 'yyyy-MM-dd'),
-                        type: 'reminder',
-                        is_public: false
-                      });
-                      
-                      // Close modal
-                      setIsAddReminderModalVisible(false);
-                    }
-                  } catch (error) {
-                    console.error('Error saving reminder:', error);
-                    Alert.alert('Error', 'Failed to save reminder. Please try again.');
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
+                onPress={saveReminder}
               >
                 <ThemedText style={styles.saveButtonText}>
                   {loading ? 'Saving...' : 'Save Reminder'}
