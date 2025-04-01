@@ -86,6 +86,16 @@ export default function AdminTabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          title: 'Tasks',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="checkmark-circle-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
       {/* <Tabs.Screen
         name="departments"
         options={{
@@ -95,7 +105,7 @@ export default function AdminTabLayout() {
           ),
         }}
       /> */}
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="announcements"
         options={{
           title: 'Announcements',
@@ -103,7 +113,7 @@ export default function AdminTabLayout() {
             <Ionicons name="megaphone-outline" size={size} color={color} />
           ),
         }}
-      />
+      /> */}
       <Tabs.Screen
         name="profile"
         options={{

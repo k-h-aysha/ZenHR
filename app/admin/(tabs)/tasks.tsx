@@ -9,9 +9,10 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 import { ThemedText } from '@/components/ThemedText';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -201,7 +202,10 @@ export default function AdminTasksScreen() {
   const renderTaskItem = ({ item }: { item: Task }) => (
     <View style={styles.taskItem}>
       <View style={styles.taskHeader}>
-        <ThemedText style={styles.taskTitle}>{item.title}</ThemedText>
+        <View style={styles.taskTitleContainer}>
+          <Ionicons name="checkmark-circle-outline" size={24} color="#1e3a8a" style={styles.taskIcon} />
+          <ThemedText style={styles.taskTitle}>{item.title}</ThemedText>
+        </View>
         <View style={styles.taskActions}>
           <TouchableOpacity
             style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}
@@ -246,7 +250,7 @@ export default function AdminTasksScreen() {
     >
       <View style={styles.header}>
         <ThemedText style={styles.title}>Tasks</ThemedText>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.addButton}
           onPress={() => setModalVisible(true)}
         >
@@ -428,6 +432,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  taskTitleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  taskIcon: {
+    marginRight: 8,
   },
   taskTitle: {
     fontSize: 16,
