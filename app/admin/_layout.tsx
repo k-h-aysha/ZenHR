@@ -76,7 +76,7 @@ export default function AdminTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: '',
           tabBarIcon: ({ color, size }) => (
             <View style={styles.dashboardIconContainer}>
               <View style={[styles.dashboardIconWrapper, { backgroundColor: color }]}>

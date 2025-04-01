@@ -79,10 +79,15 @@ export default function AdminProfileScreen() {
   const checkProfile = async () => {
     try {
       setLoading(true);
+      if (!user?.id) {
+        console.error('No user ID available');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('admin_profiles')
         .select('*')
-        .eq('id', user?.id)
+        .eq('id', user.id)
         .single();
 
       if (error) {
@@ -90,13 +95,14 @@ export default function AdminProfileScreen() {
           // No profile exists, show setup form
           setIsSetup(true);
           setFormData({
-            full_name: user?.full_name || '',
+            full_name: user.full_name || '',
             phone_number: '',
             department: '',
             position: '',
             bio: '',
           });
         } else {
+          console.error('Error fetching profile:', error);
           throw error;
         }
       } else {
@@ -398,7 +404,7 @@ export default function AdminProfileScreen() {
         colors={['#0f172a', '#1e3a8a', '#2563eb']}
         style={[styles.container, { paddingTop: insets.top }]}
       >
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollViewContent}
           showsVerticalScrollIndicator={false}
@@ -415,7 +421,7 @@ export default function AdminProfileScreen() {
           {/* Header */}
           <View style={styles.header}>
             <ThemedText style={styles.headerTitle}>Profile</ThemedText>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerIcon}
               onPress={() => setShowSettingsModal(true)}
             >
@@ -471,8 +477,8 @@ export default function AdminProfileScreen() {
           {/* Stats */}
           <View style={styles.statsContainer}>
             {stats.map((stat, index) => (
-              <View 
-                key={stat.label} 
+              <View
+                key={stat.label}
                 style={[
                   styles.statItem,
                   index < stats.length - 1 && styles.statBorder

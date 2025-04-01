@@ -193,22 +193,51 @@ export default function AdminEmployeesScreen() {
                 return;
               }
 
-              // Create user profile directly in users table
+              // First, sign up the user
+              const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: newUser.email,
+                password: newUser.password,
+                options: {
+                  data: {
+                    full_name: newUser.name,
+                    role: 'employee'
+                  }
+                }
+              });
+
+              if (authError) throw authError;
+
+              if (!authData.user?.id) {
+                throw new Error('Failed to get user ID from auth response');
+              }
+
+              // Create user profile in users table
               const { error: insertError } = await supabase
                 .from('users')
                 .insert([
                   {
+                    id: authData.user.id,
                     email: newUser.email,
                     full_name: newUser.name,
-                    password: newUser.password, // Note: In production, this should be hashed
                     email_verified: true,
-                    role: 'employee', // Set role as employee directly
+                    role: 'employee',
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                   },
                 ]);
 
               if (insertError) throw insertError;
+
+              // Update the user's role and verification status in auth.users
+              const { error: updateError } = await supabase
+                .from('auth.users')
+                .update({
+                  role: 'employee',
+                  email_confirmed_at: new Date().toISOString()
+                })
+                .eq('id', authData.user.id);
+
+              if (updateError) throw updateError;
 
               Alert.alert('Success', 'Employee added successfully');
               setModalVisible(false);
