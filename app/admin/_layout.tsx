@@ -3,10 +3,12 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/lib/theme/ThemeContext';
 
 export default function AdminTabLayout() {
   const insets = useSafeAreaInsets();
-  const tabBarHeight = Platform.OS === 'ios' ? 80 : 60;
+  const tabBarHeight = Platform.OS === 'ios' ? 85 : 65;
+  const { theme } = useTheme();
 
   return (
     <Tabs
@@ -18,14 +20,15 @@ export default function AdminTabLayout() {
           left: 0,
           right: 0,
           height: tabBarHeight + insets.bottom,
-          backgroundColor: '#1e293b',
+          backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff',
           borderTopWidth: 0,
           elevation: 0,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
+          borderTopLeftRadius: 30,
+          borderTopRightRadius: 30,
           paddingHorizontal: 10,
           paddingTop: 10,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+          borderTopColor: theme === 'dark' ? '#1e293b' : '#e2e8f0',
           ...Platform.select({
             ios: {
               shadowColor: '#000',
@@ -33,11 +36,11 @@ export default function AdminTabLayout() {
                 width: 0,
                 height: -4,
               },
-              shadowOpacity: 0.1,
-              shadowRadius: 8,
+              shadowOpacity: 0.3,
+              shadowRadius: 16,
             },
             android: {
-              elevation: 8,
+              elevation: 16,
             },
           }),
         },
@@ -66,7 +69,7 @@ export default function AdminTabLayout() {
         options={{
           title: 'Leaves',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
+            <Ionicons name="calendar-outline" size={size + 2} color={color} />
           ),
         }}
       />
@@ -74,21 +77,30 @@ export default function AdminTabLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color, size }) => (
             <View style={styles.dashboardIconContainer}>
               <View style={[styles.dashboardIconWrapper, { backgroundColor: color }]}>
-                <Ionicons name="grid-outline" size={26} color="#1e293b" />
+                <Ionicons name="home-outline" size={28} color="#ffffff" />
               </View>
             </View>
           ),
         }}
       />
-      <Tabs.Screen
-        name="settings"
+      {/* <Tabs.Screen
+        name="departments"
         options={{
-          title: 'Settings',
+          title: 'Departments',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
+            <Ionicons name="business-outline" size={size} color={color} />
+          ),
+        }}
+      /> */}
+      <Tabs.Screen
+        name="announcements"
+        options={{
+          title: 'Announcements',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="megaphone-outline" size={size} color={color} />
           ),
         }}
       />
@@ -110,31 +122,31 @@ export default function AdminTabLayout() {
 const styles = StyleSheet.create({
   dashboardIconContainer: {
     position: 'absolute',
-    top: -30,
+    top: -35,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 70,
-    height: 70,
+    width: 80,
+    height: 80,
   },
   dashboardIconWrapper: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#93c5fd',
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: '#3b82f6',
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: '#3b82f6',
         shadowOffset: {
           width: 0,
-          height: 2,
+          height: 4,
         },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
       },
       android: {
-        elevation: 5,
+        elevation: 8,
       },
     }),
   },

@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '../../lib/types';
+import { supabase } from '../supabase';
+import { Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: (User & { role?: string }) | null;
@@ -22,30 +24,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user data exists in AsyncStorage
-    const checkUser = async () => {
-      try {
-        const userData = await AsyncStorage.getItem('user');
-        console.log('Stored user data:', userData);
-        if (userData) {
-          setUser(JSON.parse(userData));
-        }
-      } catch (error) {
-        console.error('Error loading user data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    // Clear any existing session on app startup
+    supabase.auth.signOut().then(() => {
+      setIsLoading(false);
+    });
 
-    checkUser();
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      
+      if (session?.user) {
+        const userData = {
+          id: session.user.id,
+          email: session.user.email!,
+          full_name: session.user.user_metadata?.full_name,
+          role: session.user.user_metadata?.role,
+        };
+        setUser(userData);
+      } else {
+        setUser(null);
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (userData: User & { role?: string }) => {
     try {
       console.log('Logging in with user data:', userData);
+      
+      // Ensure we have the complete user data including role
+      if (!userData.role) {
+        // If role is missing, fetch it from Supabase
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+        if (supabaseUser?.user_metadata?.role) {
+          userData.role = supabaseUser.user_metadata.role;
+        }
+      }
+      
       await AsyncStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
-      console.log('User logged in successfully');
+      console.log('User logged in successfully with role:', userData.role);
     } catch (error) {
       console.error('Error saving user data:', error);
       throw error;
@@ -54,11 +76,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await AsyncStorage.removeItem('user');
+      // First clear the user state to trigger the navigation effect
       setUser(null);
-      router.replace('/auth/login');
+      
+      // Then sign out from Supabase and clear storage
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      await AsyncStorage.removeItem('user');
+      
+      // Let the root layout handle the navigation to /auth
+      // This ensures we don't have competing navigation attempts
     } catch (error) {
-      console.error('Error removing user data:', error);
+      console.error('Error during logout:', error);
       throw error;
     }
   };

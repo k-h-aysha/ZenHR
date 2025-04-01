@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,10 +16,13 @@ import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { signUpUser } from '../../lib/supabase';
-import { AuthError, PostgrestError } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 const formWidth = Math.min(400, width * 0.9);
+
+const COOLDOWN_PERIOD = 60; // 60 seconds cooldown
+const LAST_SIGNUP_ATTEMPT_KEY = 'last_signup_attempt';
 
 export default function SignupScreen() {
   const [name, setName] = useState('');
@@ -27,6 +30,40 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [cooldownTime, setCooldownTime] = useState(0);
+
+  useEffect(() => {
+    checkCooldown();
+  }, []);
+
+  const checkCooldown = async () => {
+    try {
+      const lastAttempt = await AsyncStorage.getItem(LAST_SIGNUP_ATTEMPT_KEY);
+      if (lastAttempt) {
+        const timeSinceLastAttempt = (Date.now() - parseInt(lastAttempt)) / 1000;
+        if (timeSinceLastAttempt < COOLDOWN_PERIOD) {
+          setCooldownTime(Math.ceil(COOLDOWN_PERIOD - timeSinceLastAttempt));
+          startCooldownTimer();
+        } else {
+          await AsyncStorage.removeItem(LAST_SIGNUP_ATTEMPT_KEY);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking cooldown:', error);
+    }
+  };
+
+  const startCooldownTimer = () => {
+    const timer = setInterval(() => {
+      setCooldownTime((prevTime) => {
+        if (prevTime <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prevTime - 1;
+      });
+    }, 1000);
+  };
 
   const handleSignup = async () => {
     try {
@@ -43,22 +80,44 @@ export default function SignupScreen() {
         return;
       }
 
-      const { data, error, message } = await signUpUser(email, password, name);
-
-      if (error) {
-        Alert.alert('Error', error.message);
+      // Check if in cooldown period
+      if (cooldownTime > 0) {
+        Alert.alert(
+          'Please Wait',
+          `You can try signing up again in ${cooldownTime} seconds.`
+        );
         return;
       }
 
-      Alert.alert('Success', message || 'Account created successfully', [
-        {
-          text: 'OK',
-          onPress: () => {
-            // Navigate to login screen after successful signup
-            router.replace('/auth/login');
+      const { data, error, message } = await signUpUser(email, password, name);
+
+      if (error) {
+        if (error.message.includes('rate limit exceeded')) {
+          // Set cooldown period
+          await AsyncStorage.setItem(LAST_SIGNUP_ATTEMPT_KEY, Date.now().toString());
+          setCooldownTime(COOLDOWN_PERIOD);
+          startCooldownTimer();
+          
+          Alert.alert(
+            'Rate Limit Exceeded',
+            'Too many signup attempts. Please wait 60 seconds before trying again.'
+          );
+        } else {
+          Alert.alert('Error', error.message);
+        }
+        return;
+      }
+
+      Alert.alert(
+        'Success',
+        message || 'Account created successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/auth/login'),
           },
-        },
-      ]);
+        ]
+      );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create account';
       Alert.alert('Error', errorMessage);
@@ -90,6 +149,13 @@ export default function SignupScreen() {
             <View style={styles.welcomeContainer}>
               <Text style={styles.title}>Create Account</Text>
               <Text style={styles.subtitle}>Join us to get started</Text>
+            </View>
+
+            <View style={styles.rateLimitInfo}>
+              <Ionicons name="information-circle-outline" size={16} color="#93c5fd" />
+              <Text style={styles.rateLimitText}>
+                Note: Limited to 50 signups per day. Please wait 60 seconds between attempts.
+              </Text>
             </View>
 
             <View style={styles.inputContainer}>
@@ -143,13 +209,18 @@ export default function SignupScreen() {
               </View>
             </View>
 
-            <TouchableOpacity 
-              style={[styles.signupButton, loading && styles.signupButtonDisabled]} 
+            <TouchableOpacity
+              style={[
+                styles.signupButton,
+                (loading || cooldownTime > 0) && styles.signupButtonDisabled
+              ]} 
               onPress={handleSignup}
-              disabled={loading}
+              disabled={loading || cooldownTime > 0}
             >
               {loading ? (
                 <ActivityIndicator color="#0f172a" size="small" />
+              ) : cooldownTime > 0 ? (
+                <Text style={styles.signupButtonText}>Wait {cooldownTime}s</Text>
               ) : (
                 <Text style={styles.signupButtonText}>Create Account</Text>
               )}
@@ -201,7 +272,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   welcomeContainer: {
-    marginBottom: 32,
+    marginBottom: 16,
+  },
+  rateLimitInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(147, 197, 253, 0.1)',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 24,
+  },
+  rateLimitText: {
+    color: '#93c5fd',
+    fontSize: 12,
+    marginLeft: 8,
+    flex: 1,
   },
   title: {
     fontSize: 32,
