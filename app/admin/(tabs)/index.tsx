@@ -238,10 +238,16 @@ export default function AdminDashboard() {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'approved');
 
-      // Fetch departments count
-      const { count: departmentsCount } = await supabase
-        .from('departments')
-        .select('*', { count: 'exact', head: true });
+      // Fetch unique departments from users table
+      const { data: departmentsData } = await supabase
+        .from('users')
+        .select('dept')
+        .eq('role', 'employee')
+        .not('dept', 'is', null);
+
+      // Get unique departments count
+      const uniqueDepartments = new Set(departmentsData?.map(user => user.dept));
+      const departmentsCount = uniqueDepartments.size;
 
       // Fetch pending requests
       const { count: pendingRequestsCount } = await supabase

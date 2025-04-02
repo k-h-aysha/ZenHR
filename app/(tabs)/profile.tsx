@@ -17,12 +17,13 @@ type UserProfile = {
   email: string;
   phone: string;
   address: string;
-  user_id: string;
   job_title: string;
   employment_type: string;
   dept: string;
   is_active: boolean;
   avatar_url?: string;
+  created_at: string;
+  updated_at: string;
 };
 
 function ProfileScreen() {
@@ -40,9 +41,9 @@ function ProfileScreen() {
     if (!user) return;
     try {
       const { data, error } = await supabase
-        .from('user_profile')
+        .from('users')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single();
 
       if (error) throw error;
@@ -52,10 +53,10 @@ function ProfileScreen() {
       } else {
         // Create initial profile if it doesn't exist
         const { data: newProfile, error: createError } = await supabase
-          .from('user_profile')
+          .from('users')
           .insert([
             {
-              user_id: user.id,
+              id: user.id,
               email: user.email,
               full_name: (user as any).user_metadata?.full_name || '',
               is_active: true,

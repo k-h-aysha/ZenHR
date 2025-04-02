@@ -17,13 +17,13 @@ type UserProfile = {
   email: string;
   phone: string;
   address: string;
-  user_id: string;
   job_title: string;
   employment_type: string;
   dept: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  avatar_url?: string;
 };
 
 function EditProfileScreen() {
@@ -48,11 +48,12 @@ function EditProfileScreen() {
 
   const fetchProfile = async () => {
     if (!user) return;
+    setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('user_profile')
+        .from('users')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single();
 
       if (error) throw error;
@@ -90,7 +91,6 @@ function EditProfileScreen() {
 
   const handleSave = async () => {
     if (!user || !profile) return;
-    
     setSaving(true);
     try {
       // Validate date format (YYYY-MM-DD)
@@ -104,24 +104,24 @@ function EditProfileScreen() {
       }
 
       const { error } = await supabase
-        .from('user_profile')
+        .from('users')
         .update({
           date_of_birth: dateOfBirth || null,
-          gender,
-          nationality,
-          phone,
-          address,
+          gender: gender || null,
+          nationality: nationality || null,
+          phone: phone || null,
+          address: address || null,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', user.id);
+        .eq('id', user.id);
 
       if (error) throw error;
 
-      Alert.alert('Success', 'Profile information updated successfully');
-      setHasChanges(false);
+      Alert.alert('Success', 'Profile updated successfully');
+      router.back();
     } catch (error) {
       console.error('Error updating profile:', error);
-      Alert.alert('Error', 'Failed to update profile information');
+      Alert.alert('Error', 'Failed to update profile');
     } finally {
       setSaving(false);
     }

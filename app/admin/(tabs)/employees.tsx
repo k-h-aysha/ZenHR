@@ -35,6 +35,9 @@ type User = {
   bank_name?: string;
   created_at: string;
   updated_at: string;
+  dept?: string;
+  job_title?: string;
+  employment_type?: string;
 };
 
 export default function AdminEmployeesScreen() {
@@ -53,7 +56,10 @@ export default function AdminEmployeesScreen() {
     salary: '',
     joining_date: new Date().toISOString().split('T')[0],
     bank_account: '',
-    bank_name: ''
+    bank_name: '',
+    dept: '',
+    job_title: '',
+    employment_type: ''
   });
   const [addingUser, setAddingUser] = useState(false);
 
@@ -140,7 +146,10 @@ export default function AdminEmployeesScreen() {
       salary: '',
       joining_date: new Date().toISOString().split('T')[0],
       bank_account: '',
-      bank_name: ''
+      bank_name: '',
+      dept: '',
+      job_title: '',
+      employment_type: ''
     });
     setModalVisible(true);
   };
@@ -155,7 +164,10 @@ export default function AdminEmployeesScreen() {
       salary: employee.salary?.toString() || '',
       joining_date: employee.joining_date || new Date().toISOString().split('T')[0],
       bank_account: employee.bank_account || '',
-      bank_name: employee.bank_name || ''
+      bank_name: employee.bank_name || '',
+      dept: employee.dept || '',
+      job_title: employee.job_title || '',
+      employment_type: employee.employment_type || ''
     });
     setModalVisible(true);
   };
@@ -169,7 +181,7 @@ export default function AdminEmployeesScreen() {
     try {
       setLoading(true);
 
-      if (!formData.name || !formData.position || !formData.salary || !formData.joining_date) {
+      if (!formData.name || !formData.position || !formData.salary || !formData.joining_date || !formData.dept || !formData.job_title || !formData.employment_type) {
         Alert.alert('Error', 'Please fill in all required fields');
         return;
       }
@@ -187,7 +199,10 @@ export default function AdminEmployeesScreen() {
             salary: parseFloat(formData.salary),
             joining_date: formData.joining_date,
             bank_account: formData.bank_account,
-            bank_name: formData.bank_name
+            bank_name: formData.bank_name,
+            dept: formData.dept,
+            job_title: formData.job_title,
+            employment_type: formData.employment_type
           })
           .eq('id', selectedEmployee.id);
 
@@ -257,6 +272,9 @@ export default function AdminEmployeesScreen() {
               joining_date: formData.joining_date,
               bank_account: formData.bank_account,
               bank_name: formData.bank_name,
+              dept: formData.dept,
+              job_title: formData.job_title,
+              employment_type: formData.employment_type,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             },
@@ -443,39 +461,47 @@ export default function AdminEmployeesScreen() {
                 </View>
               </View>
 
-              {selectedEmployee.role === 'employee' && (
-                <View style={styles.detailsSection}>
-                  <ThemedText style={styles.detailsSectionTitle}>Employment Details</ThemedText>
-                  <View style={styles.detailsRow}>
-                    <ThemedText style={styles.detailsLabel}>Position:</ThemedText>
-                    <ThemedText style={styles.detailsValue}>{selectedEmployee.position || 'Not set'}</ThemedText>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <ThemedText style={styles.detailsLabel}>Salary:</ThemedText>
-                    <ThemedText style={styles.detailsValue}>SAR {selectedEmployee.salary?.toFixed(2) || '0.00'}</ThemedText>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <ThemedText style={styles.detailsLabel}>Joining Date:</ThemedText>
-                    <ThemedText style={styles.detailsValue}>
-                      {selectedEmployee.joining_date ? new Date(selectedEmployee.joining_date).toLocaleDateString() : 'Not set'}
-                    </ThemedText>
-                  </View>
+              <View style={styles.detailsSection}>
+                <ThemedText style={styles.detailsSectionTitle}>Employment Details</ThemedText>
+                <View style={styles.detailsRow}>
+                  <ThemedText style={styles.detailsLabel}>Department:</ThemedText>
+                  <ThemedText style={styles.detailsValue}>{selectedEmployee.dept || 'Not set'}</ThemedText>
                 </View>
-              )}
+                <View style={styles.detailsRow}>
+                  <ThemedText style={styles.detailsLabel}>Job Title:</ThemedText>
+                  <ThemedText style={styles.detailsValue}>{selectedEmployee.job_title || 'Not set'}</ThemedText>
+                </View>
+                <View style={styles.detailsRow}>
+                  <ThemedText style={styles.detailsLabel}>Employment Type:</ThemedText>
+                  <ThemedText style={styles.detailsValue}>{selectedEmployee.employment_type || 'Not set'}</ThemedText>
+                </View>
+                <View style={styles.detailsRow}>
+                  <ThemedText style={styles.detailsLabel}>Position:</ThemedText>
+                  <ThemedText style={styles.detailsValue}>{selectedEmployee.position || 'Not set'}</ThemedText>
+                </View>
+                <View style={styles.detailsRow}>
+                  <ThemedText style={styles.detailsLabel}>Salary:</ThemedText>
+                  <ThemedText style={styles.detailsValue}>SAR {selectedEmployee.salary?.toFixed(2) || '0.00'}</ThemedText>
+                </View>
+                <View style={styles.detailsRow}>
+                  <ThemedText style={styles.detailsLabel}>Joining Date:</ThemedText>
+                  <ThemedText style={styles.detailsValue}>
+                    {selectedEmployee.joining_date ? new Date(selectedEmployee.joining_date).toLocaleDateString() : 'Not set'}
+                  </ThemedText>
+                </View>
+              </View>
 
-              {selectedEmployee.role === 'employee' && (
-                <View style={styles.detailsSection}>
-                  <ThemedText style={styles.detailsSectionTitle}>Bank Details</ThemedText>
-                  <View style={styles.detailsRow}>
-                    <ThemedText style={styles.detailsLabel}>Bank Account:</ThemedText>
-                    <ThemedText style={styles.detailsValue}>{selectedEmployee.bank_account || 'Not set'}</ThemedText>
-                  </View>
-                  <View style={styles.detailsRow}>
-                    <ThemedText style={styles.detailsLabel}>Bank Name:</ThemedText>
-                    <ThemedText style={styles.detailsValue}>{selectedEmployee.bank_name || 'Not set'}</ThemedText>
-                  </View>
+              <View style={styles.detailsSection}>
+                <ThemedText style={styles.detailsSectionTitle}>Bank Details</ThemedText>
+                <View style={styles.detailsRow}>
+                  <ThemedText style={styles.detailsLabel}>Bank Account:</ThemedText>
+                  <ThemedText style={styles.detailsValue}>{selectedEmployee.bank_account || 'Not set'}</ThemedText>
                 </View>
-              )}
+                <View style={styles.detailsRow}>
+                  <ThemedText style={styles.detailsLabel}>Bank Name:</ThemedText>
+                  <ThemedText style={styles.detailsValue}>{selectedEmployee.bank_name || 'Not set'}</ThemedText>
+                </View>
+              </View>
 
               <View style={styles.detailsActions}>
                 {selectedEmployee.role === 'user' && (
@@ -616,6 +642,39 @@ export default function AdminEmployeesScreen() {
               </View>
 
               <View style={styles.formGroup}>
+                <ThemedText style={styles.label}>Department *</ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={formData.dept}
+                  onChangeText={text => setFormData({ ...formData, dept: text })}
+                  placeholder="Enter department"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <ThemedText style={styles.label}>Job Title *</ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={formData.job_title}
+                  onChangeText={text => setFormData({ ...formData, job_title: text })}
+                  placeholder="Enter job title"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <ThemedText style={styles.label}>Employment Type *</ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={formData.employment_type}
+                  onChangeText={text => setFormData({ ...formData, employment_type: text })}
+                  placeholder="Enter employment type"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
                 <ThemedText style={styles.label}>Position *</ThemedText>
                 <TextInput
                   style={styles.input}
@@ -672,12 +731,17 @@ export default function AdminEmployeesScreen() {
               </View>
 
               <TouchableOpacity
-                style={styles.saveButton}
+                style={styles.submitButton}
                 onPress={handleSave}
+                disabled={loading}
               >
-                <ThemedText style={styles.saveButtonText}>
-                  {selectedEmployee ? 'Update Employee' : 'Add Employee'}
-                </ThemedText>
+                {loading ? (
+                  <ActivityIndicator color="#0f172a" />
+                ) : (
+                  <ThemedText style={styles.submitButtonText}>
+                    {selectedEmployee ? 'Update Employee' : 'Add Employee'}
+                  </ThemedText>
+                )}
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -865,14 +929,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  saveButton: {
+  submitButton: {
     backgroundColor: '#93c5fd',
     borderRadius: 6,
     padding: 12,
     alignItems: 'center',
     marginTop: 8,
   },
-  saveButtonText: {
+  submitButtonText: {
     color: '#0f172a',
     fontSize: 14,
     fontWeight: '600',

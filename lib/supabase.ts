@@ -400,4 +400,41 @@ export const getCurrentUser = async () => {
     console.error('Error getting current user:', error);
     return null;
   }
+};
+
+export const submitLeaveRequest = async (
+  employeeId: string,
+  leaveType: string,
+  fromDate: Date,
+  toDate: Date,
+  dayPart: string,
+  duration: string,
+  reason: string
+) => {
+  try {
+    const { data, error } = await supabase
+      .from('leave_requests')
+      .insert([
+        {
+          employee_id: employeeId,
+          leave_type: leaveType,
+          from_date: fromDate.toISOString(),
+          to_date: toDate.toISOString(),
+          day_part: dayPart,
+          duration: duration,
+          reason: reason,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error submitting leave request:', error);
+    return { data: null, error: error as SupabaseError };
+  }
 }; 

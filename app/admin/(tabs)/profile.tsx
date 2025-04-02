@@ -12,13 +12,13 @@ import {
   RefreshControl,
   Switch,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/ThemedText';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/auth/AuthContext';
+import { useAuth, withAuth } from '@/lib/auth/AuthContext';
 import { useTheme } from '@/lib/theme/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -36,10 +36,10 @@ type AdminProfile = {
   updated_at: string;
 };
 
-export default function AdminProfileScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
+function AdminProfileScreen() {
   const { user } = useAuth();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { theme, toggleTheme } = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -92,7 +92,6 @@ export default function AdminProfileScreen() {
 
       if (error) {
         if (error.code === 'PGRST116') {
-          // No profile exists, show setup form
           setIsSetup(true);
           setFormData({
             full_name: user.full_name || '',
@@ -125,18 +124,15 @@ export default function AdminProfileScreen() {
 
   const fetchStats = async () => {
     try {
-      // Fetch employees count
       const { count: employeesCount } = await supabase
         .from('users')
         .select('*', { count: 'exact', head: true })
         .eq('role', 'employee');
 
-      // Fetch departments count
       const { count: departmentsCount } = await supabase
-        .from('departments')
-        .select('*', { count: 'exact', head: true });
+        .from('users')
+        .select('*', { count: 'exact', head: true })
 
-      // Fetch active leaves count
       const { count: activeLeavesCount } = await supabase
         .from('leave_requests')
         .select('*', { count: 'exact', head: true })
@@ -252,7 +248,6 @@ export default function AdminProfileScreen() {
 
       if (!result.canceled) {
         setProfileImage(result.assets[0].uri);
-        // Here you would typically upload the image to your server
         console.log('Image selected:', result.assets[0].uri);
       }
     } catch (error) {
@@ -279,7 +274,6 @@ export default function AdminProfileScreen() {
 
     setPasswordLoading(true);
     try {
-      // First, verify the current password
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user?.email || '',
         password: passwordData.currentPassword,
@@ -290,7 +284,6 @@ export default function AdminProfileScreen() {
         return;
       }
 
-      // If current password is correct, update to new password
       const { error: updateError } = await supabase.auth.updateUser({
         password: passwordData.newPassword
       });
@@ -300,7 +293,6 @@ export default function AdminProfileScreen() {
         return;
       }
 
-      // Clear all session data
       await AsyncStorage.multiRemove(['session', 'user']);
       await supabase.auth.signOut();
 
@@ -330,45 +322,6 @@ export default function AdminProfileScreen() {
     }
   };
 
-  const menuItems = [
-    {
-      icon: 'person-outline',
-      label: 'Edit Profile',
-      onPress: () => setIsEditing(true),
-    },
-    {
-      icon: 'lock-closed-outline',
-      label: 'Change Password',
-      onPress: () => setShowPasswordModal(true),
-    },
-    {
-      icon: 'notifications-outline',
-      label: 'Notifications',
-      onPress: () => setShowSettingsModal(true),
-    },
-    {
-      icon: 'shield-outline',
-      label: 'Privacy & Security',
-      onPress: () => setShowSettingsModal(true),
-    },
-    {
-      icon: 'help-circle-outline',
-      label: 'Help & Support',
-      onPress: () => setShowSettingsModal(true),
-    },
-    {
-      icon: 'information-circle-outline',
-      label: 'About',
-      onPress: () => setShowSettingsModal(true),
-    },
-    {
-      icon: 'log-out-outline',
-      label: 'Logout',
-      onPress: handleSignOut,
-      textColor: '#ef4444',
-    },
-  ];
-
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
@@ -386,15 +339,16 @@ export default function AdminProfileScreen() {
 
   if (loading) {
     return (
-      <LinearGradient
-        colors={['#0f172a', '#1e3a8a', '#2563eb']}
-        style={[styles.container, { paddingTop: insets.top }]}
-      >
+      <View style={styles.mainContainer}>
+        <LinearGradient
+          colors={['#0f172a', '#1e3a8a', '#2563eb']}
+          style={styles.backgroundGradient}
+        />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#93c5fd" />
-          <ThemedText style={styles.loadingText}>Loading profile...</ThemedText>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <ThemedText style={styles.loadingText}>Loading your profile...</ThemedText>
         </View>
-      </LinearGradient>
+      </View>
     );
   }
 
@@ -402,47 +356,43 @@ export default function AdminProfileScreen() {
     <View style={styles.mainContainer}>
       <LinearGradient
         colors={['#0f172a', '#1e3a8a', '#2563eb']}
-        style={[styles.container, { paddingTop: insets.top }]}
+        style={styles.backgroundGradient}
+      />
+      <ScrollView 
+        style={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#ffffff"
+            colors={['#ffffff']}
+            progressBackgroundColor="#0f172a"
+          />
+        }
       >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#93c5fd"
-              colors={['#93c5fd']}
-              progressBackgroundColor="#0f172a"
-            />
-          }
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <ThemedText style={styles.headerTitle}>Profile</ThemedText>
-            <TouchableOpacity
-              style={styles.headerIcon}
-              onPress={() => setShowSettingsModal(true)}
-            >
-              <Ionicons name="settings-outline" size={24} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
+        <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+          <ThemedText style={styles.headerTitle}>Admin Profile</ThemedText>
+          <TouchableOpacity
+            style={styles.headerIcon}
+            onPress={() => setShowSettingsModal(true)}
+          >
+            <Ionicons name="settings-outline" size={24} color="#ffffff" />
+          </TouchableOpacity>
+        </View>
 
-          {/* Profile Card */}
-          <View style={styles.profileCard}>
+        <View style={styles.content}>
+          {/* Profile Header */}
+          <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
               <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
                 {profileImage ? (
                   <Image
                     source={{ uri: profileImage }}
-                    style={styles.avatarImage}
+                    style={styles.avatar}
                   />
                 ) : (
-                  <View style={styles.avatarWrapper}>
-                    <ThemedText style={styles.avatarText}>
-                      {profile?.full_name?.split(' ').map((n: string) => n[0]).join('') || 'AD'}
-                    </ThemedText>
+                  <View style={styles.avatarPlaceholder}>
+                    <MaterialIcons name="person" size={40} color="#ffffff" />
                   </View>
                 )}
                 <View style={styles.editAvatarButton}>
@@ -450,28 +400,20 @@ export default function AdminProfileScreen() {
                 </View>
               </TouchableOpacity>
             </View>
-            {isEditing ? (
-              <TextInput
-                style={styles.editInput}
-                value={formData.full_name}
-                onChangeText={(text) => setFormData({ ...formData, full_name: text })}
-                placeholder="Full Name"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
-              />
-            ) : (
-              <ThemedText style={styles.profileName}>{profile?.full_name || 'Admin'}</ThemedText>
-            )}
-            {isEditing ? (
-              <TextInput
-                style={styles.editInput}
-                value={formData.position}
-                onChangeText={(text) => setFormData({ ...formData, position: text })}
-                placeholder="Position"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
-              />
-            ) : (
-              <ThemedText style={styles.profileRole}>{profile?.position || 'Administrator'}</ThemedText>
-            )}
+            <View style={styles.profileInfo}>
+              {isEditing ? (
+                <TextInput
+                  style={styles.editInput}
+                  value={formData.full_name}
+                  onChangeText={(text) => setFormData({ ...formData, full_name: text })}
+                  placeholder="Full Name"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                />
+              ) : (
+                <ThemedText style={styles.name}>{profile?.full_name || 'Admin'}</ThemedText>
+              )}
+              <ThemedText style={styles.email}>{profile?.email || 'admin@example.com'}</ThemedText>
+            </View>
           </View>
 
           {/* Stats */}
@@ -490,14 +432,35 @@ export default function AdminProfileScreen() {
             ))}
           </View>
 
-          {/* Info Section */}
-          <View style={styles.infoSection}>
-            <View style={styles.infoItem}>
-              <Ionicons name="mail-outline" size={20} color="#94a3b8" />
-              <ThemedText style={styles.infoText}>{profile?.email || user?.email}</ThemedText>
+          {/* Profile Information */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="person" size={22} color="#2563eb" />
+              <ThemedText style={styles.sectionTitle}>Profile Information</ThemedText>
             </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="call-outline" size={20} color="#94a3b8" />
+
+            <View style={styles.infoRow}>
+              <ThemedText style={styles.infoLabel}>Full Name</ThemedText>
+              {isEditing ? (
+                <TextInput
+                  style={styles.editInput}
+                  value={formData.full_name}
+                  onChangeText={(text) => setFormData({ ...formData, full_name: text })}
+                  placeholder="Full Name"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                />
+              ) : (
+                <ThemedText style={styles.infoValue}>{profile?.full_name || 'Not set'}</ThemedText>
+              )}
+            </View>
+
+            <View style={styles.infoRow}>
+              <ThemedText style={styles.infoLabel}>Email</ThemedText>
+              <ThemedText style={styles.infoValue}>{profile?.email || 'Not set'}</ThemedText>
+            </View>
+
+            <View style={styles.infoRow}>
+              <ThemedText style={styles.infoLabel}>Phone</ThemedText>
               {isEditing ? (
                 <TextInput
                   style={styles.editInput}
@@ -508,15 +471,12 @@ export default function AdminProfileScreen() {
                   keyboardType="phone-pad"
                 />
               ) : (
-                <ThemedText style={styles.infoText}>{profile?.phone_number || 'Not set'}</ThemedText>
+                <ThemedText style={styles.infoValue}>{profile?.phone_number || 'Not set'}</ThemedText>
               )}
             </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="calendar-outline" size={20} color="#94a3b8" />
-              <ThemedText style={styles.infoText}>Joined {new Date(profile?.created_at || '').toLocaleDateString()}</ThemedText>
-            </View>
-            <View style={styles.infoItem}>
-              <Ionicons name="business-outline" size={20} color="#94a3b8" />
+
+            <View style={styles.infoRow}>
+              <ThemedText style={styles.infoLabel}>Department</ThemedText>
               {isEditing ? (
                 <TextInput
                   style={styles.editInput}
@@ -526,242 +486,224 @@ export default function AdminProfileScreen() {
                   placeholderTextColor="rgba(255, 255, 255, 0.6)"
                 />
               ) : (
-                <ThemedText style={styles.infoText}>{profile?.department || 'Not set'}</ThemedText>
+                <ThemedText style={styles.infoValue}>{profile?.department || 'Not set'}</ThemedText>
+              )}
+            </View>
+
+            <View style={styles.infoRow}>
+              <ThemedText style={styles.infoLabel}>Position</ThemedText>
+              {isEditing ? (
+                <TextInput
+                  style={styles.editInput}
+                  value={formData.position}
+                  onChangeText={(text) => setFormData({ ...formData, position: text })}
+                  placeholder="Position"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                />
+              ) : (
+                <ThemedText style={styles.infoValue}>{profile?.position || 'Not set'}</ThemedText>
               )}
             </View>
           </View>
 
-          {/* Menu Items */}
-          <View style={styles.menuSection}>
-            {menuItems.map((item, index) => (
-              <TouchableOpacity
-                key={item.label}
-                style={[
-                  styles.menuItem,
-                  index < menuItems.length - 1 && styles.menuItemBorder
-                ]}
-                onPress={item.onPress}
-              >
-                <View style={styles.menuItemContent}>
-                  <Ionicons name={item.icon as any} size={24} color="#93c5fd" />
-                  <ThemedText style={styles.menuItemLabel}>{item.label}</ThemedText>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#64748b" />
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* Account Actions */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="settings-outline" size={22} color="#2563eb" />
+              <ThemedText style={styles.sectionTitle}>Account Actions</ThemedText>
+            </View>
 
-          {/* Save Button (when editing) */}
-          {isEditing && (
-            <TouchableOpacity
-              style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-              onPress={handleSave}
-              disabled={saving}
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => setIsEditing(!isEditing)}
             >
-              {saving ? (
-                <ActivityIndicator color="#0f172a" />
-              ) : (
-                <ThemedText style={styles.saveButtonText}>Save Changes</ThemedText>
-              )}
+              <View style={styles.actionContent}>
+                <MaterialIcons name="edit" size={24} color="#2563eb" />
+                <ThemedText style={styles.actionText}>
+                  {isEditing ? 'Cancel Editing' : 'Edit Profile'}
+                </ThemedText>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#64748b" />
             </TouchableOpacity>
-          )}
 
-          {/* Setup Form (if needed) */}
-          {isSetup && (
-            <View style={styles.setupSection}>
-              <ThemedText style={styles.setupTitle}>Complete Your Profile</ThemedText>
-              <TextInput
-                style={styles.setupInput}
-                value={formData.full_name}
-                onChangeText={(text) => setFormData({ ...formData, full_name: text })}
-                placeholder="Full Name *"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
-              />
-              <TextInput
-                style={styles.setupInput}
-                value={formData.department}
-                onChangeText={(text) => setFormData({ ...formData, department: text })}
-                placeholder="Department *"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
-              />
-              <TextInput
-                style={styles.setupInput}
-                value={formData.position}
-                onChangeText={(text) => setFormData({ ...formData, position: text })}
-                placeholder="Position *"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
-              />
-              <TextInput
-                style={styles.setupInput}
-                value={formData.phone_number}
-                onChangeText={(text) => setFormData({ ...formData, phone_number: text })}
-                placeholder="Phone Number"
-                placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                keyboardType="phone-pad"
-              />
-              <TouchableOpacity
-                style={[styles.setupButton, saving && styles.setupButtonDisabled]}
-                onPress={handleSetup}
+            {isEditing && (
+              <TouchableOpacity 
+                style={[styles.actionButton, styles.saveButton]}
+                onPress={handleSave}
                 disabled={saving}
               >
+                <View style={styles.actionContent}>
+                  <MaterialIcons name="save" size={24} color="#2563eb" />
+                  <ThemedText style={styles.actionText}>
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </ThemedText>
+                </View>
                 {saving ? (
+                  <ActivityIndicator color="#2563eb" />
+                ) : (
+                  <Ionicons name="chevron-forward" size={24} color="#64748b" />
+                )}
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => setShowPasswordModal(true)}
+            >
+              <View style={styles.actionContent}>
+                <Ionicons name="lock-closed-outline" size={24} color="#2563eb" />
+                <ThemedText style={styles.actionText}>Change Password</ThemedText>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#64748b" />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.logoutButton]}
+              onPress={handleSignOut}
+            >
+              <View style={styles.actionContent}>
+                <Ionicons name="log-out-outline" size={24} color="#ef4444" />
+                <ThemedText style={[styles.actionText, styles.logoutText]}>Logout</ThemedText>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Change Password</ThemedText>
+              <TouchableOpacity
+                onPress={() => setShowPasswordModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <View style={styles.inputContainer}>
+                <ThemedText style={styles.label}>Current Password</ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={passwordData.currentPassword}
+                  onChangeText={(text) => setPasswordData({ ...passwordData, currentPassword: text })}
+                  placeholder="Enter your current password"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  secureTextEntry
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <ThemedText style={styles.label}>New Password</ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={passwordData.newPassword}
+                  onChangeText={(text) => setPasswordData({ ...passwordData, newPassword: text })}
+                  placeholder="Enter your new password"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  secureTextEntry
+                />
+              </View>
+
+              <View style={styles.inputContainer}>
+                <ThemedText style={styles.label}>Confirm New Password</ThemedText>
+                <TextInput
+                  style={styles.input}
+                  value={passwordData.confirmPassword}
+                  onChangeText={(text) => setPasswordData({ ...passwordData, confirmPassword: text })}
+                  placeholder="Confirm your new password"
+                  placeholderTextColor="rgba(255, 255, 255, 0.6)"
+                  secureTextEntry
+                />
+              </View>
+
+              <TouchableOpacity 
+                style={[styles.saveButton, passwordLoading && styles.saveButtonDisabled]}
+                onPress={handleChangePassword}
+                disabled={passwordLoading}
+              >
+                {passwordLoading ? (
                   <ActivityIndicator color="#0f172a" />
                 ) : (
-                  <ThemedText style={styles.setupButtonText}>Complete Setup</ThemedText>
+                  <ThemedText style={styles.saveButtonText}>Update Password</ThemedText>
                 )}
               </TouchableOpacity>
             </View>
-          )}
+          </View>
+        </View>
+      )}
 
-          {/* Settings Modal */}
-          {showSettingsModal && (
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <ThemedText style={styles.modalTitle}>Settings</ThemedText>
-                  <TouchableOpacity
-                    onPress={() => setShowSettingsModal(false)}
-                    style={styles.closeButton}
-                  >
-                    <Ionicons name="close" size={24} color="#94a3b8" />
-                  </TouchableOpacity>
-                </View>
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <ThemedText style={styles.modalTitle}>Settings</ThemedText>
+              <TouchableOpacity
+                onPress={() => setShowSettingsModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
 
-                <View style={styles.modalBody}>
-                  <View style={styles.settingsSection}>
-                    <ThemedText style={styles.settingsSectionTitle}>Notifications</ThemedText>
-                    <View style={styles.settingItem}>
-                      <View style={styles.settingItemContent}>
-                        <Ionicons name="notifications-outline" size={24} color="#93c5fd" />
-                        <ThemedText style={styles.settingItemLabel}>Push Notifications</ThemedText>
-                      </View>
-                      <Switch
-                        value={notificationsEnabled}
-                        onValueChange={setNotificationsEnabled}
-                        trackColor={{ false: '#64748b', true: '#93c5fd' }}
-                        thumbColor="#ffffff"
-                      />
-                    </View>
-                    <View style={styles.settingItem}>
-                      <View style={styles.settingItemContent}>
-                        <Ionicons name="mail-outline" size={24} color="#93c5fd" />
-                        <ThemedText style={styles.settingItemLabel}>Email Alerts</ThemedText>
-                      </View>
-                      <Switch
-                        value={emailAlerts}
-                        onValueChange={setEmailAlerts}
-                        trackColor={{ false: '#64748b', true: '#93c5fd' }}
-                        thumbColor="#ffffff"
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.settingsSection}>
-                    <ThemedText style={styles.settingsSectionTitle}>Appearance</ThemedText>
-                    <View style={styles.settingItem}>
-                      <View style={styles.settingItemContent}>
-                        <Ionicons name="moon-outline" size={24} color="#93c5fd" />
-                        <ThemedText style={styles.settingItemLabel}>Dark Mode</ThemedText>
-                      </View>
-                      <Switch
-                        value={theme === 'dark'}
-                        onValueChange={toggleTheme}
-                        trackColor={{ false: '#64748b', true: '#93c5fd' }}
-                        thumbColor="#ffffff"
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.settingsSection}>
-                    <ThemedText style={styles.settingsSectionTitle}>Support</ThemedText>
-                    <TouchableOpacity style={styles.settingItem}>
-                      <View style={styles.settingItemContent}>
-                        <Ionicons name="help-circle-outline" size={24} color="#93c5fd" />
-                        <ThemedText style={styles.settingItemLabel}>Help & Support</ThemedText>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color="#64748b" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.settingItem}>
-                      <View style={styles.settingItemContent}>
-                        <Ionicons name="information-circle-outline" size={24} color="#93c5fd" />
-                        <ThemedText style={styles.settingItemLabel}>About</ThemedText>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color="#64748b" />
-                    </TouchableOpacity>
+            <View style={styles.modalBody}>
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <Ionicons name="notifications-outline" size={24} color="#2563eb" />
+                  <View style={styles.settingText}>
+                    <ThemedText style={styles.settingTitle}>Push Notifications</ThemedText>
+                    <ThemedText style={styles.settingDescription}>Receive notifications about important updates</ThemedText>
                   </View>
                 </View>
+                <Switch
+                  value={notificationsEnabled}
+                  onValueChange={setNotificationsEnabled}
+                  trackColor={{ false: '#e2e8f0', true: '#2563eb' }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <Ionicons name="mail-outline" size={24} color="#2563eb" />
+                  <View style={styles.settingText}>
+                    <ThemedText style={styles.settingTitle}>Email Alerts</ThemedText>
+                    <ThemedText style={styles.settingDescription}>Receive email notifications for important events</ThemedText>
+                  </View>
+                </View>
+                <Switch
+                  value={emailAlerts}
+                  onValueChange={setEmailAlerts}
+                  trackColor={{ false: '#e2e8f0', true: '#2563eb' }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+
+              <View style={styles.settingItem}>
+                <View style={styles.settingInfo}>
+                  <Ionicons name="moon-outline" size={24} color="#2563eb" />
+                  <View style={styles.settingText}>
+                    <ThemedText style={styles.settingTitle}>Dark Mode</ThemedText>
+                    <ThemedText style={styles.settingDescription}>Toggle dark mode theme</ThemedText>
+                  </View>
+                </View>
+                <Switch
+                  value={theme === 'dark'}
+                  onValueChange={toggleTheme}
+                  trackColor={{ false: '#e2e8f0', true: '#2563eb' }}
+                  thumbColor="#ffffff"
+                />
               </View>
             </View>
-          )}
-
-          {/* Password Change Modal */}
-          {showPasswordModal && (
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <ThemedText style={styles.modalTitle}>Change Password</ThemedText>
-                  <TouchableOpacity
-                    onPress={() => setShowPasswordModal(false)}
-                    style={styles.closeButton}
-                  >
-                    <Ionicons name="close" size={24} color="#94a3b8" />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.modalBody}>
-                  <View style={styles.inputContainer}>
-                    <ThemedText style={styles.label}>Current Password</ThemedText>
-                    <TextInput
-                      style={styles.input}
-                      value={passwordData.currentPassword}
-                      onChangeText={(text) => setPasswordData({ ...passwordData, currentPassword: text })}
-                      placeholder="Enter your current password"
-                      placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                      secureTextEntry
-                    />
-                  </View>
-
-                  <View style={styles.inputContainer}>
-                    <ThemedText style={styles.label}>New Password</ThemedText>
-                    <TextInput
-                      style={styles.input}
-                      value={passwordData.newPassword}
-                      onChangeText={(text) => setPasswordData({ ...passwordData, newPassword: text })}
-                      placeholder="Enter your new password"
-                      placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                      secureTextEntry
-                    />
-                  </View>
-
-                  <View style={styles.inputContainer}>
-                    <ThemedText style={styles.label}>Confirm New Password</ThemedText>
-                    <TextInput
-                      style={styles.input}
-                      value={passwordData.confirmPassword}
-                      onChangeText={(text) => setPasswordData({ ...passwordData, confirmPassword: text })}
-                      placeholder="Confirm your new password"
-                      placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                      secureTextEntry
-                    />
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.saveButton, passwordLoading && styles.saveButtonDisabled]}
-                    onPress={handleChangePassword}
-                    disabled={passwordLoading}
-                  >
-                    {passwordLoading ? (
-                      <ActivityIndicator color="#0f172a" />
-                    ) : (
-                      <ThemedText style={styles.saveButtonText}>Update Password</ThemedText>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-        </ScrollView>
-      </LinearGradient>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -770,31 +712,34 @@ const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
   },
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
   container: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   loadingText: {
-    color: '#93c5fd',
-    marginTop: 12,
+    marginTop: 16,
     fontSize: 16,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollViewContent: {
-    paddingBottom: 100,
+    color: '#ffffff',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingBottom: 24,
+    paddingHorizontal: 16,
   },
   headerTitle: {
     fontSize: 24,
@@ -804,49 +749,54 @@ const styles = StyleSheet.create({
   headerIcon: {
     padding: 8,
   },
-  profileCard: {
+  content: {
+    paddingHorizontal: 16,
+    paddingBottom: 100,
+  },
+  profileHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 4,
   },
   avatarContainer: {
     position: 'relative',
-    marginBottom: 16,
+    marginRight: 16,
   },
-  avatarWrapper: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(147, 197, 253, 0.2)',
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  avatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#2563eb',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-  },
-  avatarText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#93c5fd',
   },
   editAvatarButton: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#93c5fd',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    backgroundColor: '#2563eb',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
-        shadowOffset: {
-          width: 0,
-          height: 2,
-        },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
       },
@@ -855,161 +805,136 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  profileName: {
-    fontSize: 24,
+  profileInfo: {
+    flex: 1,
+  },
+  name: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#1e293b',
     marginBottom: 4,
   },
-  profileRole: {
-    fontSize: 16,
-    color: '#94a3b8',
+  email: {
+    fontSize: 14,
+    color: '#64748b',
   },
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginBottom: 24,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 4,
   },
   statItem: {
     flex: 1,
-    paddingVertical: 16,
     alignItems: 'center',
   },
   statBorder: {
     borderRightWidth: 1,
-    borderRightColor: 'rgba(255, 255, 255, 0.1)',
+    borderRightColor: '#e2e8f0',
   },
   statValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#1e293b',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: '#64748b',
   },
-  infoSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    marginHorizontal: 20,
+  section: {
+    backgroundColor: 'white',
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 4,
   },
-  infoItem: {
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingBottom: 12,
     marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
-  infoText: {
-    marginLeft: 12,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginLeft: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  infoLabel: {
     fontSize: 16,
-    color: '#ffffff',
+    color: '#64748b',
   },
-  menuSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginBottom: 24,
+  infoValue: {
+    fontSize: 16,
+    color: '#1e293b',
+    fontWeight: '500',
   },
-  menuItem: {
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-  },
-  menuItemBorder: {
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: '#e2e8f0',
   },
-  menuItemContent: {
+  actionContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  menuItemLabel: {
+  actionText: {
+    fontSize: 16,
+    color: '#1e293b',
     marginLeft: 12,
-    fontSize: 16,
-    color: '#ffffff',
   },
-  setupSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    marginHorizontal: 20,
-    padding: 16,
-    marginBottom: 24,
-  },
-  setupTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 16,
-  },
-  setupInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    color: '#ffffff',
-    fontSize: 16,
-  },
-  setupButton: {
-    backgroundColor: '#93c5fd',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
+  logoutButton: {
+    borderBottomWidth: 0,
     marginTop: 8,
   },
-  setupButtonDisabled: {
-    opacity: 0.7,
-  },
-  setupButtonText: {
-    color: '#0f172a',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(147, 197, 253, 0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(147, 197, 253, 0.3)',
-  },
-  editButtonText: {
-    color: '#93c5fd',
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  editInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    padding: 12,
-    color: '#ffffff',
-    fontSize: 16,
-    width: '100%',
-    textAlign: 'center',
-    marginBottom: 4,
+  logoutText: {
+    color: '#ef4444',
   },
   saveButton: {
-    backgroundColor: '#93c5fd',
+    backgroundColor: '#2563eb',
     borderRadius: 8,
-    padding: 16,
+    padding: 12,
     alignItems: 'center',
-    marginHorizontal: 20,
-    marginBottom: 24,
+    marginTop: 8,
   },
   saveButtonDisabled: {
     opacity: 0.7,
   },
   saveButtonText: {
-    color: '#0f172a',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  editInput: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 8,
+    color: '#1e293b',
+    fontSize: 16,
+    flex: 1,
+    textAlign: 'right',
   },
   modalOverlay: {
     position: 'absolute',
@@ -1022,7 +947,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    backgroundColor: 'white',
     borderRadius: 16,
     width: '90%',
     maxWidth: 400,
@@ -1037,7 +962,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#1e293b',
   },
   closeButton: {
     padding: 4,
@@ -1046,47 +971,48 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   inputContainer: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   label: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 4,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 8,
   },
   input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#f1f5f9',
     borderRadius: 8,
     padding: 12,
-    color: '#ffffff',
+    color: '#1e293b',
     fontSize: 16,
-    width: '100%',
-  },
-  settingsSection: {
-    marginBottom: 24,
-  },
-  settingsSectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 16,
-    paddingHorizontal: 16,
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: '#e2e8f0',
   },
-  settingItemContent: {
+  settingInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
-  settingItemLabel: {
+  settingText: {
     marginLeft: 12,
-    fontSize: 16,
-    color: '#ffffff',
+    flex: 1,
   },
-}); 
+  settingTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  settingDescription: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+});
+
+export default withAuth(AdminProfileScreen); 

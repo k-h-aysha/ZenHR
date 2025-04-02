@@ -17,7 +17,6 @@ type UserProfile = {
   email: string;
   phone: string;
   address: string;
-  user_id: string;
   job_title: string;
   employment_type: string;
   dept: string;
@@ -39,9 +38,9 @@ function AccountInfoScreen() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('user_profile')
+        .from('users')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single();
 
       if (error) throw error;

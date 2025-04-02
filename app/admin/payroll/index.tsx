@@ -114,8 +114,28 @@ export default function PayrollScreen() {
                 throw new Error('Could not find current user in users table');
             }
 
-            // Create payroll records using the employee IDs directly
-            const newRecords = employees.map(employee => ({
+            // First, get existing payroll records for the selected month and year
+            const { data: existingRecords, error: existingError } = await supabase
+                .from('payroll_records')
+                .select('user_id')
+                .eq('month', selectedMonth)
+                .eq('year', selectedYear);
+
+            if (existingError) throw existingError;
+
+            // Create a set of user IDs that already have records
+            const existingUserIds = new Set(existingRecords?.map(record => record.user_id) || []);
+
+            // Filter out employees that already have records
+            const employeesToProcess = employees.filter(employee => !existingUserIds.has(employee.id));
+
+            if (employeesToProcess.length === 0) {
+                Alert.alert('Info', 'Payroll records already exist for all employees for this period.');
+                return;
+            }
+
+            // Create payroll records only for employees without existing records
+            const newRecords = employeesToProcess.map(employee => ({
                 user_id: employee.id,
                 month: selectedMonth,
                 year: selectedYear,
@@ -127,18 +147,17 @@ export default function PayrollScreen() {
                 created_by: currentUser.id
             }));
 
-            if (newRecords.length === 0) {
-                throw new Error('No valid records to insert');
-            }
-
             const { error } = await supabase
                 .from('payroll_records')
                 .insert(newRecords);
 
             if (error) throw error;
+            
+            Alert.alert('Success', `Generated ${newRecords.length} new payroll records.`);
             await fetchPayrollRecords();
         } catch (error) {
             console.error('Error generating payroll:', error);
+            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to generate payroll records');
         } finally {
             setLoading(false);
         }
