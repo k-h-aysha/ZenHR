@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator, RefreshControl, FlatList } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -367,8 +367,102 @@ export default function AdminDashboard() {
         colors={['#0f172a', '#1e3a8a', '#2563eb']}
         style={[styles.container, { paddingTop: insets.top }]}
       >
-        <ScrollView
-          style={styles.scrollView}
+        <FlatList
+          data={[1]}
+          renderItem={() => (
+            <View style={styles.scrollContent}>
+              {/* Header */}
+              <View style={styles.header}>
+                <ThemedText style={styles.headerTitle}>Admin Dashboard</ThemedText>
+                {stats.pendingRequests > 0 && <View style={styles.notificationBadge} />}
+              </View>
+
+              {/* Stats Grid */}
+              <View style={styles.statsGrid}>
+                <View style={[styles.statCard, { backgroundColor: '#f1f5f9' }]}>
+                  <ThemedText style={styles.statNumber}>{stats.totalEmployees}</ThemedText>
+                  <ThemedText style={styles.statLabel}>Total Employees</ThemedText>
+                  <Ionicons name="people" size={24} color="#1e3a8a" style={styles.statIcon} />
+                </View>
+                <View style={[styles.statCard, { backgroundColor: '#dbeafe' }]}>
+                  <ThemedText style={styles.statNumber}>{stats.activeLeaves}</ThemedText>
+                  <ThemedText style={styles.statLabel}>Active Leaves</ThemedText>
+                  <Ionicons name="calendar" size={24} color="#1e3a8a" style={styles.statIcon} />
+                </View>
+                <View style={[styles.statCard, { backgroundColor: '#e0f2fe' }]}>
+                  <ThemedText style={styles.statNumber}>{stats.departments}</ThemedText>
+                  <ThemedText style={styles.statLabel}>Departments</ThemedText>
+                  <Ionicons name="business" size={24} color="#1e3a8a" style={styles.statIcon} />
+                </View>
+                <View style={[styles.statCard, { backgroundColor: '#fef3c7' }]}>
+                  <ThemedText style={styles.statNumber}>{stats.pendingRequests}</ThemedText>
+                  <ThemedText style={styles.statLabel}>Pending Requests</ThemedText>
+                  <Ionicons name="time" size={24} color="#1e3a8a" style={styles.statIcon} />
+                </View>
+              </View>
+
+              {/* Quick Actions */}
+              <View style={styles.section}>
+                <ThemedText style={styles.sectionTitle}>Quick Actions</ThemedText>
+                <FlatList
+                  data={[
+                    { id: '1', icon: 'person-add' as const, color: 'rgba(96, 165, 250, 0.2)', iconColor: '#93c5fd', text: 'Add Employee', route: '/admin/employees' },
+                    { id: '2', icon: 'checkmark-circle' as const, color: 'rgba(34, 197, 94, 0.2)', iconColor: '#4ade80', text: 'Tasks', route: '/admin/tasks' },
+                    { id: '3', icon: 'calendar' as const, color: 'rgba(251, 191, 36, 0.2)', iconColor: '#fbbf24', text: 'Leaves', route: '/admin/leaves' },
+                    { id: '4', icon: 'megaphone' as const, color: 'rgba(236, 72, 153, 0.2)', iconColor: '#ec4899', text: 'Announcements', route: '/admin/announcements' },
+                    { id: '5', icon: 'cash' as const, color: 'rgba(139, 92, 246, 0.2)', iconColor: '#a78bfa', text: 'Payroll', route: '/admin/payroll' }
+                  ]}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.quickActionsContainer}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => router.push(item.route)}
+                    >
+                      <View style={[styles.actionIcon, { backgroundColor: item.color }]}>
+                        <Ionicons name={item.icon} size={24} color={item.iconColor} />
+                      </View>
+                      <ThemedText style={styles.actionText}>{item.text}</ThemedText>
+                    </TouchableOpacity>
+                  )}
+                  keyExtractor={item => item.id}
+                />
+              </View>
+
+              {/* Announcements */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <ThemedText style={styles.sectionTitle}>Announcements</ThemedText>
+                  <TouchableOpacity
+                    style={styles.viewAllButton}
+                    onPress={() => router.push('/admin/announcements')}
+                  >
+                    <ThemedText style={styles.viewAllText}>View All</ThemedText>
+                  </TouchableOpacity>
+                </View>
+                {announcements.slice(0, 2).map((announcement) => (
+                  <View key={announcement.id} style={styles.announcementCard}>
+                    <View style={styles.announcementHeader}>
+                      <View style={styles.titleContainer}>
+                        <Ionicons name="megaphone" size={20} color="#3b82f6" style={styles.titleIcon} />
+                        <ThemedText style={styles.announcementTitle}>
+                          {announcement.title}
+                        </ThemedText>
+                      </View>
+                      <ThemedText style={styles.announcementDate}>
+                        {new Date(announcement.created_at).toLocaleDateString()}
+                      </ThemedText>
+                    </View>
+                    <ThemedText style={styles.announcementContent} numberOfLines={2}>
+                      {announcement.content}
+                    </ThemedText>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+          keyExtractor={() => 'dashboard'}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl
@@ -379,115 +473,7 @@ export default function AdminDashboard() {
               progressBackgroundColor="#1e3a8a"
             />
           }
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <ThemedText style={styles.headerTitle}>Admin Dashboard</ThemedText>
-            {stats.pendingRequests > 0 && <View style={styles.notificationBadge} />}
-          </View>
-
-          {/* Stats Grid */}
-          <View style={styles.statsGrid}>
-            <View style={[styles.statCard, { backgroundColor: '#f1f5f9' }]}>
-              <ThemedText style={styles.statNumber}>{stats.totalEmployees}</ThemedText>
-              <ThemedText style={styles.statLabel}>Total Employees</ThemedText>
-              <Ionicons name="people" size={24} color="#1e3a8a" style={styles.statIcon} />
-            </View>
-            <View style={[styles.statCard, { backgroundColor: '#dbeafe' }]}>
-              <ThemedText style={styles.statNumber}>{stats.activeLeaves}</ThemedText>
-              <ThemedText style={styles.statLabel}>Active Leaves</ThemedText>
-              <Ionicons name="calendar" size={24} color="#1e3a8a" style={styles.statIcon} />
-            </View>
-            <View style={[styles.statCard, { backgroundColor: '#e0f2fe' }]}>
-              <ThemedText style={styles.statNumber}>{stats.departments}</ThemedText>
-              <ThemedText style={styles.statLabel}>Departments</ThemedText>
-              <Ionicons name="business" size={24} color="#1e3a8a" style={styles.statIcon} />
-            </View>
-            <View style={[styles.statCard, { backgroundColor: '#fef3c7' }]}>
-              <ThemedText style={styles.statNumber}>{stats.pendingRequests}</ThemedText>
-              <ThemedText style={styles.statLabel}>Pending Requests</ThemedText>
-              <Ionicons name="time" size={24} color="#1e3a8a" style={styles.statIcon} />
-            </View>
-          </View>
-
-          {/* Quick Actions */}
-          <View style={styles.section}>
-            <ThemedText style={styles.sectionTitle}>Quick Actions</ThemedText>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.quickActionsContainer}
-            >
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push('/admin/employees')}
-              >
-                <View style={[styles.actionIcon, { backgroundColor: 'rgba(96, 165, 250, 0.2)' }]}>
-                  <Ionicons name="person-add" size={24} color="#93c5fd" />
-                </View>
-                <ThemedText style={styles.actionText}>Add Employee</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push('/admin/tasks')}
-              >
-                <View style={[styles.actionIcon, { backgroundColor: 'rgba(34, 197, 94, 0.2)' }]}>
-                  <Ionicons name="checkmark-circle" size={24} color="#4ade80" />
-                </View>
-                <ThemedText style={styles.actionText}>Tasks</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push('/admin/leaves')}
-              >
-                <View style={[styles.actionIcon, { backgroundColor: 'rgba(251, 191, 36, 0.2)' }]}>
-                  <Ionicons name="calendar" size={24} color="#fbbf24" />
-                </View>
-                <ThemedText style={styles.actionText}>Leaves</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => router.push('/admin/announcements')}
-              >
-                <View style={[styles.actionIcon, { backgroundColor: 'rgba(236, 72, 153, 0.2)' }]}>
-                  <Ionicons name="megaphone" size={24} color="#ec4899" />
-                </View>
-                <ThemedText style={styles.actionText}>Announcements</ThemedText>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-
-          {/* Announcements */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <ThemedText style={styles.sectionTitle}>Announcements</ThemedText>
-              <TouchableOpacity
-                style={styles.viewAllButton}
-                onPress={() => router.push('/admin/announcements')}
-              >
-                <ThemedText style={styles.viewAllText}>View All</ThemedText>
-              </TouchableOpacity>
-            </View>
-            {announcements.slice(0, 2).map((announcement) => (
-              <View key={announcement.id} style={styles.announcementCard}>
-                <View style={styles.announcementHeader}>
-                  <View style={styles.titleContainer}>
-                    <Ionicons name="megaphone" size={20} color="#3b82f6" style={styles.titleIcon} />
-                    <ThemedText style={styles.announcementTitle}>
-                      {announcement.title}
-                    </ThemedText>
-                  </View>
-                  <ThemedText style={styles.announcementDate}>
-                    {new Date(announcement.created_at).toLocaleDateString()}
-                  </ThemedText>
-                </View>
-                <ThemedText style={styles.announcementContent} numberOfLines={2}>
-                  {announcement.content}
-                </ThemedText>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
+        />
       </LinearGradient>
     </View>
   );
@@ -507,21 +493,23 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
   },
-  scrollView: {
-    flex: 1,
-    padding: 20,
-    paddingBottom: 120,
+  scrollContent: {
+    padding: 3,
+    paddingBottom: 20,
+    marginHorizontal: 5,
+    marginTop: 10,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 17,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 25,
     fontWeight: 'bold',
     color: '#ffffff',
+    marginBottom: 10,
   },
   notificationBadge: {
     position: 'absolute',
@@ -536,13 +524,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 17,
   },
   statCard: {
     width: (width - 50) / 2,
     padding: 15,
     borderRadius: 12,
-    marginBottom: 10,
+    marginBottom: 17,
   },
   statNumber: {
     fontSize: 24,
@@ -564,14 +552,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#ffffff',
-    marginBottom: 15,
+    marginBottom: 19,
   },
   quickActionsContainer: {
     paddingRight: 10,
-    paddingBottom: 20,
+    paddingBottom: 19,
   },
   quickActions: {
     flexDirection: 'row',
@@ -582,8 +570,8 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   actionIcon: {
-    width: 50,
-    height: 50,
+    width: 60,
+    height: 60,
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
@@ -630,11 +618,11 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   viewAllButton: {
-    padding: 8,
+    padding: 5,
   },
   viewAllText: {
     color: '#93c5fd',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   announcementCard: {
@@ -680,9 +668,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#475569',
     lineHeight: 20,
-  },
-  scrollContent: {
-    paddingTop: 20,
-    paddingBottom: 40,
   },
 }); 
