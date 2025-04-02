@@ -117,8 +117,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Invalid credentials');
       }
 
-      if (!userData || (userData.role !== 'admin' && (!userData.email_verified || userData.role !== 'employee'))) {
-        throw new Error('Unauthorized access');
+      // Check if user is either an admin or a verified employee
+      if (!userData || (userData.role !== 'admin' && userData.role !== 'employee')) {
+        throw new Error('Access denied. Only employees and administrators can log in.');
+      }
+
+      // For employees, ensure they are verified
+      if (userData.role === 'employee' && !userData.email_verified) {
+        throw new Error('Your account is not verified. Please verify your email first.');
       }
 
       // Then, attempt Supabase auth

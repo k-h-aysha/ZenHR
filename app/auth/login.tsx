@@ -63,15 +63,22 @@ export default function LoginScreen() {
         return;
       }
 
-      // Check if user is admin
+      // Check if user is admin or employee
       if (response.data.user.role === 'admin') {
         router.replace('/admin');
-      } else {
+      } else if (response.data.user.role === 'employee') {
         router.replace('/');
+      } else {
+        Alert.alert('Access Denied', 'Only employees and administrators can log in to this system.');
+        return;
       }
     } catch (error) {
       console.error('Login error:', error);
-      Alert.alert('Error', 'An error occurred during login. Please try again.');
+      if (error instanceof Error) {
+        Alert.alert('Error', error.message);
+      } else {
+        Alert.alert('Error', 'An error occurred during login. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -297,7 +304,7 @@ export default function LoginScreen() {
           </Text>
         </View>
 
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
@@ -334,15 +341,15 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.forgotPassword}
               onPress={() => setShowResetModal(true)}
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
+            <TouchableOpacity
+              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
               onPress={handleLogin}
               disabled={loading}
             >
@@ -354,10 +361,10 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>Don't have an account? </Text>
+              <Text style={styles.signupText}>Need an employee account? </Text>
               <Link href="/auth/signup" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.signupLink}>Create Account</Text>
+                  <Text style={styles.signupLink}>Contact Administrator</Text>
                 </TouchableOpacity>
               </Link>
             </View>

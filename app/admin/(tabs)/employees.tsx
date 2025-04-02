@@ -356,6 +356,14 @@ export default function AdminEmployeesScreen() {
         <View style={styles.userHeader}>
           <ThemedText style={styles.userName}>{item.full_name}</ThemedText>
           <View style={styles.headerActions}>
+            {item.role !== 'employee' && (
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={() => handleConfirmEmployee(item.id)}
+              >
+                <ThemedText style={styles.confirmButtonText}>Confirm as Employee</ThemedText>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[
                 styles.statusBadge,
@@ -880,10 +888,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
+    marginRight: 8,
   },
   confirmButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   emptyContainer: {
