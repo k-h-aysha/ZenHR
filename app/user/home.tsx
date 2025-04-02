@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, TouchableOpacity, ScrollView, View, Dimensions, Alert, StatusBar, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, TouchableOpacity, ScrollView, View, Dimensions, Alert, StatusBar, Platform, ActivityIndicator, RefreshControl } from 'react-native';
 import { format } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,6 +40,8 @@ const HomeScreen: React.FC = () => {  // Ensure it's declared as a functional co
   } | null>(null);
   const [totalWorkTime, setTotalWorkTime] = useState("00:00:00");
   const [isLoading, setIsLoading] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const clockStateRef = useRef(false);  // Keep this declaration
   const colorTransition = useSharedValue(isClockedIn ? 1 : 0);
   const [lastTotalWorkTime, setLastTotalWorkTime] = useState("00:00:00");
@@ -47,7 +49,7 @@ const HomeScreen: React.FC = () => {  // Ensure it's declared as a functional co
   const lastDateRef = useRef(format(new Date(), 'yyyy-MM-dd'));
   
   // Demo data for leaves and stats
-  const [stats] = useState({
+  const [stats, setStats] = useState({
     presentDays: 18,
     leavesTaken: 3,
     tasksLeft: 5,
@@ -146,6 +148,7 @@ const HomeScreen: React.FC = () => {  // Ensure it's declared as a functional co
   // Load today's attendance status when component mounts
   useEffect(() => {
     loadTodayAttendance();
+    fetchStats();
   }, []);
 
   const loadTodayAttendance = async () => {
@@ -225,6 +228,30 @@ const HomeScreen: React.FC = () => {  // Ensure it's declared as a functional co
     
     return () => clearInterval(intervalId);
   }, []);
+
+  // Add this after the other useEffect hooks
+  useEffect(() => {
+    fetchUnreadNotifications();
+  }, [user]);
+
+  const fetchUnreadNotifications = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id')
+        .contains('user_id', [user.id])
+        .eq('read', false);
+      
+      if (error) throw error;
+      
+      if (data) {
+        setUnreadNotifications(data.length);
+      }
+    } catch (error) {
+      console.error('Error fetching unread notifications:', error);
+    }
+  };
 
   // Add function to verify user ID
   const verifyUserID = async () => {
@@ -387,8 +414,68 @@ const HomeScreen: React.FC = () => {  // Ensure it's declared as a functional co
     };
   });
 
+  // Add function to handle refresh
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchStats(),
+        fetchUnreadNotifications(),
+        loadTodayAttendance()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Add function to fetch stats
+  const fetchStats = async () => {
+    if (!user) return;
+    try {
+      // Here you would normally fetch actual stats data from your backend
+      // For demo purposes, we'll simulate a fetch with updated data
+      setStats({
+        presentDays: 18,
+        leavesTaken: 3,
+        tasksLeft: 5,
+        totalLeavesAllowed: 24
+      });
+
+      // Example of how you might fetch real data:
+      // const { data, error } = await supabase
+      //   .from('employee_stats')
+      //   .select('*')
+      //   .eq('user_id', user.id)
+      //   .single();
+      // 
+      // if (error) throw error;
+      // if (data) {
+      //   setStats({
+      //     presentDays: data.present_days,
+      //     leavesTaken: data.leaves_taken,
+      //     tasksLeft: data.tasks_left,
+      //     totalLeavesAllowed: data.total_leaves_allowed
+      //   });
+      // }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor="#ffffff"
+          colors={['#3b82f6']}
+        />
+      }
+    >
       <View style={styles.mainContainer}>
         <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
         <LinearGradient
@@ -401,14 +488,29 @@ const HomeScreen: React.FC = () => {  // Ensure it's declared as a functional co
               <ThemedText style={styles.logoHighlight}>Zen</ThemedText>HR
             </ThemedText>
             
-            {/* Logout button */}
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={handleLogout}
-            >
-              <Ionicons name="log-out-outline" size={24} color="#ffffff" />
-              <ThemedText style={styles.logoutButtonText}>Logout</ThemedText>
-            </TouchableOpacity>
+            <View style={styles.headerRight}>
+              <TouchableOpacity 
+                style={styles.notificationButton}
+                onPress={() => router.push('/user/notifications')}
+              >
+                <Ionicons name="notifications-outline" size={24} color="#ffffff" />
+                {unreadNotifications > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <ThemedText style={styles.notificationBadgeText}>
+                      {unreadNotifications}
+                    </ThemedText>
+                  </View>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.logoutButton}
+                onPress={handleLogout}
+              >
+                <Ionicons name="log-out-outline" size={24} color="#ffffff" />
+                <ThemedText style={styles.logoutButtonText}>Logout</ThemedText>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView 
@@ -478,11 +580,11 @@ const HomeScreen: React.FC = () => {  // Ensure it's declared as a functional co
             <View style={styles.statsSection}>
               <View style={[styles.statBox, { backgroundColor: '#f8fafc' }]}>
                 <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.presentDays}</ThemedText>
-                <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Present Days</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Team Availability</ThemedText>
               </View>
               <View style={[styles.statBox, { backgroundColor: '#dbeafe' }]}>
                 <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>
-                  {stats.leavesTaken}/{stats.totalLeavesAllowed}
+                  {stats.leavesTaken}
                 </ThemedText>
                 <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Leaves Taken</ThemedText>
               </View>
@@ -624,12 +726,20 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: 0,
+    right: 0,
     backgroundColor: '#ef4444',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  notificationBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   dateTimeSection: {
     alignItems: 'center',
@@ -864,6 +974,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
     marginLeft: 10,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  notificationButton: {
+    position: 'relative',
+    padding: 8,
   },
 });
 

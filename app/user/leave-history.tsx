@@ -22,9 +22,9 @@ type LeaveRequest = {
 
 // Stats data structure
 type StatsData = {
-  presentDays: number;
-  leavesTaken: number;
-  workingDays: number;
+  pendingRequests: number;
+  approvedRequests: number;
+  rejectedRequests: number;
 };
 
 // Leave status badge component
@@ -72,9 +72,9 @@ export default function LeaveHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<StatsData>({
-    presentDays: 0,
-    leavesTaken: 0,
-    workingDays: 0
+    pendingRequests: 0,
+    approvedRequests: 0,
+    rejectedRequests: 0
   });
   const [activeFilter, setActiveFilter] = useState('All');
 
@@ -111,15 +111,14 @@ export default function LeaveHistoryScreen() {
   };
 
   const calculateStats = (leaves: LeaveRequest[]) => {
-    const leavesTaken = leaves.length;
-    // This is a simplified calculation - in a real app, you'd compute this based on work calendar
-    const workingDays = 230; // Assuming ~230 working days in a year
-    const presentDays = workingDays - leavesTaken;
+    const pendingRequests = leaves.filter(leave => leave.status.toLowerCase() === 'pending').length;
+    const approvedRequests = leaves.filter(leave => leave.status.toLowerCase() === 'approved').length;
+    const rejectedRequests = leaves.filter(leave => leave.status.toLowerCase() === 'rejected').length;
 
     setStats({
-      presentDays,
-      leavesTaken,
-      workingDays
+      pendingRequests,
+      approvedRequests,
+      rejectedRequests
     });
   };
 
@@ -202,18 +201,18 @@ export default function LeaveHistoryScreen() {
             {/* Stats Cards */}
             <View style={styles.statsContainer}>
               <View style={styles.statCard}>
-                <ThemedText style={styles.statNumber}>{stats.presentDays}</ThemedText>
-                <ThemedText style={styles.statLabel}>Present Days</ThemedText>
+                <ThemedText style={styles.statNumber}>{stats.pendingRequests}</ThemedText>
+                <ThemedText style={styles.statLabel}>Pending Requests</ThemedText>
               </View>
               
               <View style={styles.statCard}>
-                <ThemedText style={styles.statNumber}>{stats.leavesTaken}</ThemedText>
-                <ThemedText style={styles.statLabel}>Leaves Taken</ThemedText>
+                <ThemedText style={styles.statNumber}>{stats.approvedRequests}</ThemedText>
+                <ThemedText style={styles.statLabel}>Approved Requests</ThemedText>
               </View>
               
               <View style={styles.statCard}>
-                <ThemedText style={styles.statNumber}>{stats.workingDays}</ThemedText>
-                <ThemedText style={styles.statLabel}>Working Days</ThemedText>
+                <ThemedText style={styles.statNumber}>{stats.rejectedRequests}</ThemedText>
+                <ThemedText style={styles.statLabel}>Rejected Requests</ThemedText>
               </View>
             </View>
             
