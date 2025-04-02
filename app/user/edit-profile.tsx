@@ -171,7 +171,11 @@ function EditProfileScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
       >
-        <ScrollView style={styles.container}>
+        <ScrollView 
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+        >
           <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
             <TouchableOpacity 
               style={styles.backButton}
@@ -328,6 +332,9 @@ function EditProfileScreen() {
               </View>
             </View>
           </View>
+
+          {/* Add extra space at bottom for better scrolling */}
+          <View style={styles.extraSpace} />
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -350,7 +357,12 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+  },
+  scrollContent: {
+    paddingBottom: 120, // Add extra padding at the bottom
+  },
+  extraSpace: {
+    height: 80, // Extra space at the end of content
   },
   loadingContainer: {
     flex: 1,
@@ -399,16 +411,10 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   formSection: {
-    backgroundColor: 'white',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 16,
-    padding: 16,
-    marginTop: 16,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 4,
+    padding: 20,
+    marginBottom: 28, // Increase space between sections
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -425,7 +431,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   fieldContainer: {
-    marginBottom: 16,
+    marginBottom: 22, // Increase space between fields
   },
   fieldLabel: {
     fontSize: 16,

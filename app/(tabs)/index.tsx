@@ -43,11 +43,11 @@ function HomeScreen() {
   const maxSlideDistance = width * 0.6; // 60% of screen width
   const colorTransition = useSharedValue(isClockedIn ? 1 : 0);
   
-  // Demo data for leaves and stats
-  const [stats] = useState({
+  // Stats state
+  const [stats, setStats] = useState({
     presentDays: 18,
-    leavesTaken: 3,
-    tasksLeft: 5,
+    leavesTaken: 0,
+    tasksLeft: 0,
     totalLeavesAllowed: 24
   });
 
@@ -55,6 +55,7 @@ function HomeScreen() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   const router = useRouter();
+  const { user } = useAuth();
 
   // Add a ref to track the current state reliably
   const clockStateRef = useRef(false);
@@ -72,6 +73,164 @@ function HomeScreen() {
 
     return () => clearInterval(timer);
   }, []);
+
+  // Fetch tasks from the database to update stats
+  const fetchTasksCount = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('Fetching task count for user ID:', user.id);
+      
+      // Convert user.id to string to match with assigned_to if needed
+      const userIdString = String(user.id);
+      
+      // Fetch tasks for the current user
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('status')
+        .or(`assigned_to.eq.${user.id},assigned_to.eq.${userIdString}`);
+        
+      if (error) {
+        console.error('Error fetching tasks count:', error);
+        return;
+      }
+      
+      if (data) {
+        // Count tasks that are still pending or in progress
+        const pendingAndInProgressTasks = data.filter(
+          task => task.status === 'pending' || task.status === 'in_progress'
+        ).length;
+        
+        console.log(`Found ${pendingAndInProgressTasks} pending/in-progress tasks`);
+        
+        // Update stats with real-time count
+        setStats(prevStats => ({
+          ...prevStats,
+          tasksLeft: pendingAndInProgressTasks
+        }));
+      }
+    } catch (error) {
+      console.error('Exception fetching tasks count:', error);
+    }
+  };
+
+  // Fetch leaves count from the database
+  const fetchLeavesCount = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('Fetching approved leaves count for user ID:', user.id);
+      
+      // Convert user.id to string to match with user_id if needed
+      const userIdString = String(user.id);
+      
+      // First check if the leave_requests table exists
+      try {
+        const { data: tableCheck, error: tableError } = await supabase
+          .from('leave_requests')
+          .select('*')
+          .limit(1);
+          
+        if (tableError) {
+          console.error('Error checking leave_requests table:', tableError);
+          if (tableError.message.includes('relation "leave_requests" does not exist')) {
+            console.log('The leave_requests table does not exist in the database.');
+            return;
+          }
+        }
+        
+        if (tableCheck) {
+          console.log('leave_requests table exists, checking data structure...', 
+            tableCheck.length > 0 ? JSON.stringify(tableCheck[0], null, 2) : 'no sample data');
+        }
+      } catch (e) {
+        console.error('Exception checking leave_requests table:', e);
+      }
+      
+      // Attempt several different queries to locate the user's leave requests
+      
+      // First try checking for a 'user_id' field
+      const { data: userIdData, error: userIdError } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .or(`user_id.eq.${user.id},user_id.eq.${userIdString}`)
+        .eq('status', 'approved');
+      
+      if (userIdError) {
+        console.error('Error fetching leaves with user_id:', userIdError);
+      } else if (userIdData && userIdData.length > 0) {
+        console.log(`Found ${userIdData.length} approved leaves with user_id field`);
+        
+        // Update stats with real-time count of approved leaves
+        setStats(prevStats => ({
+          ...prevStats,
+          leavesTaken: userIdData.length
+        }));
+        return;
+      }
+      
+      // Try checking for an 'employee_id' field
+      const { data: employeeIdData, error: employeeIdError } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .or(`employee_id.eq.${user.id},employee_id.eq.${userIdString}`)
+        .eq('status', 'approved');
+      
+      if (employeeIdError) {
+        console.error('Error fetching leaves with employee_id:', employeeIdError);
+      } else if (employeeIdData && employeeIdData.length > 0) {
+        console.log(`Found ${employeeIdData.length} approved leaves with employee_id field`);
+        
+        // Update stats with real-time count of approved leaves
+        setStats(prevStats => ({
+          ...prevStats,
+          leavesTaken: employeeIdData.length
+        }));
+        return;
+      }
+      
+      // Last resort, try to list all leave requests to see structure
+      const { data: allLeaves, error: allLeavesError } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .limit(5);
+        
+      if (allLeavesError) {
+        console.error('Error fetching all leaves:', allLeavesError);
+      } else if (allLeaves && allLeaves.length > 0) {
+        console.log('Sample leave requests found:', JSON.stringify(allLeaves.slice(0, 2), null, 2));
+        console.log('Available fields:', Object.keys(allLeaves[0]));
+        
+        // Try to determine the correct user ID field from the data
+        const userIdField = Object.keys(allLeaves[0]).find(key => 
+          key.includes('user') || key.includes('employee') || key === 'id'
+        );
+        
+        if (userIdField) {
+          console.log(`Attempting to use detected field: ${userIdField}`);
+          
+          // Filter leaves manually
+          const userApprovedLeaves = allLeaves.filter(leave => 
+            String(leave[userIdField]) === userIdString && 
+            leave.status === 'approved'
+          );
+          
+          console.log(`Found ${userApprovedLeaves.length} approved leaves using ${userIdField} field`);
+          
+          if (userApprovedLeaves.length > 0) {
+            setStats(prevStats => ({
+              ...prevStats,
+              leavesTaken: userApprovedLeaves.length
+            }));
+          }
+        }
+      } else {
+        console.log('No leave requests found in the database');
+      }
+    } catch (error) {
+      console.error('Exception fetching leaves count:', error);
+    }
+  };
 
   // Fetch announcements from database
   const fetchAnnouncements = async () => {
@@ -104,7 +263,11 @@ function HomeScreen() {
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchAnnouncements();
+      await Promise.all([
+        fetchAnnouncements(),
+        fetchTasksCount(),
+        fetchLeavesCount()
+      ]);
     } catch (error) {
       console.error('Error refreshing data:', error);
     } finally {
@@ -114,6 +277,8 @@ function HomeScreen() {
 
   useEffect(() => {
     fetchAnnouncements();
+    fetchTasksCount(); // Fetch tasks count when component mounts
+    fetchLeavesCount(); // Fetch leaves count when component mounts
   }, []);
 
   useEffect(() => {
@@ -333,16 +498,22 @@ function HomeScreen() {
               <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.presentDays}</ThemedText>
               <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Team Availability</ThemedText>
             </View>
-            <View style={[styles.statBox, { backgroundColor: '#dbeafe' }]}>
+            <TouchableOpacity 
+              style={[styles.statBox, { backgroundColor: '#dbeafe' }]}
+              onPress={() => router.push('/user/leave-history')}
+            >
               <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>
                 {stats.leavesTaken}
               </ThemedText>
               <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Leaves Taken</ThemedText>
-            </View>
-            <View style={[styles.statBox, { backgroundColor: '#fef3c7' }]}>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.statBox, { backgroundColor: '#fef3c7' }]}
+              onPress={() => router.push('/(tabs)/tasks')}
+            >
               <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.tasksLeft}</ThemedText>
               <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Tasks Left</ThemedText>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Announcements Section */}
