@@ -56,7 +56,7 @@ const generateOTP = () => {
 export const sendOTP = async (email: string) => {
   try {
     const otp = generateOTP();
-    
+
     // Store OTP in the database with expiration
     const { error: dbError } = await supabase
       .from('otp_codes')
@@ -182,16 +182,16 @@ export async function signUpUser(email: string, password: string, name: string) 
 
     if (signUpError) {
       console.error('Error in signUpUser:', signUpError);
-      
+
       // Handle rate limit errors specifically
       if (signUpError.message.includes('rate limit exceeded')) {
-        return { 
-          error: { 
-            message: 'Too many attempts. Please wait a few minutes before trying again.' 
-          } 
+        return {
+          error: {
+            message: 'Too many attempts. Please wait a few minutes before trying again.'
+          }
         };
       }
-      
+
       return { error: signUpError };
     }
 
@@ -211,7 +211,9 @@ export async function signUpUser(email: string, password: string, name: string) 
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
-      ]);
+      ])
+      .select()
+      .single();
 
     if (insertError) {
       console.error('Error inserting user data:', insertError);
@@ -295,7 +297,7 @@ export const migrateAuthenticatedUsers = async () => {
   try {
     // Get all authenticated users
     const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-    
+
     if (authError) {
       console.error('Error fetching auth users:', authError);
       return { error: { message: 'Failed to fetch authenticated users' } };
@@ -370,5 +372,32 @@ export const migrateAuthenticatedUsers = async () => {
   } catch (error) {
     console.error('Error in migrateAuthenticatedUsers:', error);
     return { error: { message: 'Failed to migrate users' } };
+  }
+};
+
+export const getCurrentUser = async () => {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+
+    if (error) throw error;
+
+    if (!user) return null;
+
+    // Get additional user data from our users table
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (userError) throw userError;
+
+    return {
+      ...user,
+      ...userData,
+    };
+  } catch (error) {
+    console.error('Error getting current user:', error);
+    return null;
   }
 }; 

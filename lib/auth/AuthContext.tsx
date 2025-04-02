@@ -101,6 +101,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Monitor auth state changes for navigation
+  useEffect(() => {
+    if (!isLoading) {
+      console.log('Navigation state changed:', { isLoading, user });
+      
+      // Simple approach: always navigate based on auth state
+      if (user) {
+        // If user is logged in, go to tabs layout
+        router.replace('/(tabs)');
+      } else {
+        // If user is not logged in, go to login
+        router.replace('/auth/login');
+      }
+    }
+  }, [isLoading, user]);
+
   const login = async (email: string, password: string) => {
     try {
       console.log('Attempting login for:', email);

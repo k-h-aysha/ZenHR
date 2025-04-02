@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
+import { Tabs } from 'expo-router';
 
 // Define safe icon names that exist in Ionicons
 type IconName = 'calendar' | 'time' | 'checkmark-circle' | 'cash' | 
@@ -56,6 +57,9 @@ const colorThemes = {
 
 type ColorThemeKey = keyof typeof colorThemes;
 
+// Define service categories
+type ServiceCategory = 'all' | 'attendance' | 'leave' | 'payroll' | 'other';
+
 interface ServiceCardProps {
   title: string;
   icon: IconName;
@@ -63,9 +67,10 @@ interface ServiceCardProps {
   route?: string;
   onPress?: () => void;
   colorTheme?: ColorThemeKey;
+  category: ServiceCategory;
 }
 
-const ServiceCard = ({ title, icon, description, route, onPress, colorTheme = 'blue' }: ServiceCardProps) => {
+const ServiceCard = ({ title, icon, description, route, onPress, colorTheme = 'blue', category }: ServiceCardProps) => {
   
   const theme = colorThemes[colorTheme];
   
@@ -113,6 +118,89 @@ export default function ServicesScreen() {
         <ThemedText style={styles.headerTitle}>Services</ThemedText>
         <View style={{ width: 32 }} />
       </View>
+
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: '#38bdf8',
+          tabBarInactiveTintColor: '#94a3b8',
+          headerShown: false,
+          tabBarStyle: {
+            position: 'absolute',
+            height: Platform.OS === 'ios' ? 85 : 70,
+            borderTopWidth: 0,
+            backgroundColor: 'transparent',
+            elevation: 0,
+          },
+          tabBarItemStyle: {
+            paddingVertical: 8,
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '600',
+            marginBottom: Platform.OS === 'ios' ? 0 : 8,
+          },
+        }}>
+        <Tabs.Screen
+          name="all"
+          options={{
+            title: 'All',
+            tabBarIcon: ({ color }) => (
+              <View style={[styles.iconWrapper, { backgroundColor: color === '#38bdf8' ? 'rgba(56, 189, 248, 0.2)' : 'transparent' }]}>
+                <Ionicons name="grid" size={24} color={color} />
+              </View>
+            ),
+            tabBarLabel: 'All',
+          }}
+        />
+        <Tabs.Screen
+          name="attendance"
+          options={{
+            title: 'Attendance',
+            tabBarIcon: ({ color }) => (
+              <View style={[styles.iconWrapper, { backgroundColor: color === '#38bdf8' ? 'rgba(56, 189, 248, 0.2)' : 'transparent' }]}>
+                <Ionicons name="checkmark-circle" size={24} color={color} />
+              </View>
+            ),
+            tabBarLabel: 'Attendance',
+          }}
+        />
+        <Tabs.Screen
+          name="leave"
+          options={{
+            title: 'Leave',
+            tabBarIcon: ({ color }) => (
+              <View style={[styles.iconWrapper, { backgroundColor: color === '#38bdf8' ? 'rgba(56, 189, 248, 0.2)' : 'transparent' }]}>
+                <Ionicons name="calendar" size={24} color={color} />
+              </View>
+            ),
+            tabBarLabel: 'Leave',
+          }}
+        />
+        <Tabs.Screen
+          name="payroll"
+          options={{
+            title: 'Payroll',
+            tabBarIcon: ({ color }) => (
+              <View style={[styles.iconWrapper, { backgroundColor: color === '#38bdf8' ? 'rgba(56, 189, 248, 0.2)' : 'transparent' }]}>
+                <Ionicons name="cash" size={24} color={color} />
+              </View>
+            ),
+            tabBarLabel: 'Payroll',
+          }}
+        />
+        <Tabs.Screen
+          name="other"
+          options={{
+            title: 'Other',
+            tabBarIcon: ({ color }) => (
+              <View style={[styles.iconWrapper, { backgroundColor: color === '#38bdf8' ? 'rgba(56, 189, 248, 0.2)' : 'transparent' }]}>
+                <Ionicons name="apps" size={24} color={color} />
+              </View>
+            ),
+            tabBarLabel: 'Other',
+          }}
+        />
+      </Tabs>
       
       <ScrollView
         style={styles.scrollView}
@@ -126,6 +214,7 @@ export default function ServicesScreen() {
             description="Request time off or vacation days"
             route="/user/apply-leave"
             colorTheme="blue"
+            category="leave"
           />
           
           <ServiceCard
@@ -134,14 +223,16 @@ export default function ServicesScreen() {
             description="View your leave history and status"
             route="/user/leave-history"
             colorTheme="purple"
+            category="leave"
           />
           
           <ServiceCard
             title="Attendance"
             icon="checkmark-circle"
             description="Check your attendance records"
-            route="/(tabs)"
+            route="/user/attendance"
             colorTheme="teal"
+            category="attendance"
           />
           
           <ServiceCard
@@ -149,6 +240,7 @@ export default function ServicesScreen() {
             icon="cash"
             description="View your salary details and pay slips"
             colorTheme="sky"
+            category="payroll"
           />
           
           <ServiceCard
@@ -156,6 +248,7 @@ export default function ServicesScreen() {
             icon="analytics"
             description="Check your performance metrics"
             colorTheme="indigo"
+            category="other"
           />
           
           <ServiceCard
@@ -163,6 +256,7 @@ export default function ServicesScreen() {
             icon="people"
             description="View your team members and structure"
             colorTheme="rose"
+            category="other"
           />
           
           <ServiceCard
@@ -170,6 +264,7 @@ export default function ServicesScreen() {
             icon="document-text"
             description="Access company documents"
             colorTheme="amber"
+            category="other"
           />
           
           <ServiceCard
@@ -177,6 +272,7 @@ export default function ServicesScreen() {
             icon="gift"
             description="Explore available employee benefits"
             colorTheme="emerald"
+            category="other"
           />
         </View>
       </ScrollView>
@@ -253,5 +349,29 @@ const styles = StyleSheet.create({
   cardDescription: {
     fontSize: 12,
     color: '#475569',
-  }
+  },
+  iconWrapper: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tabBarBackground: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === 'ios' ? 85 : 70,
+    backgroundColor: '#0f172a',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 8,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
 }); 

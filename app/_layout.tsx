@@ -33,24 +33,15 @@ function RootLayoutNav() {
   }, [user, isLoading]);
 
   return (
-    <>
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerShown: false }}>
-        {/* Global error screen */}
-        <Stack.Screen name="+not-found" options={{ headerShown: true }} />
-        
-        {!user ? (
-          // Auth Stack
-          <Stack.Screen name="auth" />
-        ) : user.role === 'admin' ? (
-          // Admin Stack
-          <Stack.Screen name="admin" />
-        ) : (
-          // Main App Stack
-          <Stack.Screen name="(tabs)" />
-        )}
+        <Stack.Screen name="index" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="user" />
+        <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
       </Stack>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-    </>
+    </ThemeProvider>
   );
 }
 
@@ -66,7 +57,7 @@ function ThemeWrapper({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
+  const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 

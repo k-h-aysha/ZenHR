@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, TextInput, Platform, KeyboardAvoidingView, Alert, ActivityIndicator } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
+import { submitLeaveRequest } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 // Define leave types
 const leaveTypes = [
@@ -45,7 +47,9 @@ const getYearOptions = () => {
 };
 
 export default function ApplyLeaveScreen() {
+  const { user } = useAuth();
   const currentDate = new Date();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // State variables for form
   const [leaveType, setLeaveType] = useState('Annual Leave');
@@ -114,24 +118,72 @@ export default function ApplyLeaveScreen() {
   };
 
   // Handle form submission
-  const handleSubmit = () => {
-    // Create date objects from the selected values
-    const fromDate = new Date(Number(fromYear), fromMonth, Number(fromDay));
-    const toDate = new Date(Number(toYear), toMonth, Number(toDay));
-    
-    // In a real app, you would send this data to your backend
-    console.log({
-      leaveType,
-      fromDate,
-      toDate,
-      dayPart,
-      duration,
-      reason
-    });
-    
-    // Show success message and navigate back
-    alert('Leave request submitted successfully!');
-    router.back();
+  const handleSubmit = async () => {
+    // Validation
+    if (!user || !user.id) {
+      Alert.alert('Error', 'User is not authenticated');
+      return;
+    }
+
+    if (!leaveType) {
+      Alert.alert('Error', 'Please select a leave type');
+      return;
+    }
+
+    if (!reason.trim()) {
+      Alert.alert('Error', 'Please provide a reason for your leave request');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      
+      // Create date objects from the selected values
+      const fromDate = new Date(Number(fromYear), fromMonth, Number(fromDay));
+      const toDate = new Date(Number(toYear), toMonth, Number(toDay));
+      
+      // Check if dates are valid
+      if (fromDate > toDate) {
+        Alert.alert('Error', 'From date cannot be after to date');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Submit to Supabase
+      const { data, error } = await submitLeaveRequest(
+        user.id,
+        leaveType,
+        fromDate,
+        toDate,
+        dayPart,
+        duration,
+        reason
+      );
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      // Show success message and navigate back
+      Alert.alert(
+        'Success', 
+        'Leave request submitted successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.back()
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error submitting leave request:', error);
+      Alert.alert(
+        'Error', 
+        error instanceof Error ? error.message : 'Failed to submit leave request'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -561,10 +613,15 @@ export default function ApplyLeaveScreen() {
           
           {/* Submit Button */}
           <TouchableOpacity
-            style={styles.submitButton}
+            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
             onPress={handleSubmit}
+            disabled={isSubmitting}
           >
-            <ThemedText style={styles.submitButtonText}>Submit Request</ThemedText>
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <ThemedText style={styles.submitButtonText}>Submit Request</ThemedText>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -753,5 +810,8 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 18,
     fontWeight: '600',
-  }
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#94a3b8',
+  },
 }); 
