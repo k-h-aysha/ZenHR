@@ -32,3 +32,19 @@ ALTER TABLE public.attendance DISABLE ROW LEVEL SECURITY;
 
 -- Create index on employee_id and date for faster lookups
 CREATE INDEX IF NOT EXISTS attendance_employee_date_idx ON public.attendance (employee_id, date);
+
+-- Create announcements table
+CREATE TABLE IF NOT EXISTS public.announcements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT,
+    content TEXT,
+    created_by UUID,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Disable RLS for announcements
+ALTER TABLE public.announcements DISABLE ROW LEVEL SECURITY;
+
+-- Create index on created_at for faster lookups
+CREATE INDEX IF NOT EXISTS announcements_created_at_idx ON public.announcements (created_at DESC);

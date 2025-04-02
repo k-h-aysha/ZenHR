@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StyleSheet, TouchableOpacity, ScrollView, View, Dimensions, Alert, StatusBar, Platform, Modal } from 'react-native';
+import { StyleSheet, TouchableOpacity, ScrollView, View, Dimensions, Alert, StatusBar, Platform, Modal, RefreshControl } from 'react-native';
 import { format } from 'date-fns';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, interpolateColor, useDerivedValue, withSpring } from 'react-native-reanimated';
 import { useAuth, withAuth } from '../../lib/auth/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 import { ThemedText } from '@/components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,8 +23,8 @@ type TimeRecord = {
 type Announcement = {
   id: string;
   title: string;
-  description: string;
-  date: string;
+  content: string;
+  created_at: string;
 };
 
 function HomeScreen() {
@@ -36,6 +37,7 @@ function HomeScreen() {
   } | null>(null);
   const [totalWorkTime, setTotalWorkTime] = useState("00:00:00");
   const [isDragging, setIsDragging] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const slidePosition = useSharedValue(0);
   const slideProgress = useSharedValue(0);
   const maxSlideDistance = width * 0.6; // 60% of screen width
@@ -49,27 +51,8 @@ function HomeScreen() {
     totalLeavesAllowed: 24
   });
 
-  // Demo announcements
-  const [announcements] = useState<Announcement[]>([
-    {
-      id: '1',
-      title: 'Company Picnic',
-      description: 'Annual company picnic next Saturday at Central Park',
-      date: '2024-03-20'
-    },
-    {
-      id: '2',
-      title: 'New Policy Update',
-      description: 'Updated work from home policy effective from next month',
-      date: '2024-03-18'
-    },
-    {
-      id: '3',
-      title: 'Training Session',
-      description: 'Mandatory security training session this Friday',
-      date: '2024-03-22'
-    }
-  ]);
+  // Announcements from database
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   const router = useRouter();
 
@@ -88,6 +71,49 @@ function HomeScreen() {
     }, 1000);
 
     return () => clearInterval(timer);
+  }, []);
+
+  // Fetch announcements from database
+  const fetchAnnouncements = async () => {
+    try {
+      console.log('Fetching announcements...');
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('id, title, content, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      if (error) {
+        console.error('Error fetching announcements:', error);
+        return;
+      }
+      
+      console.log('Announcements data received:', data);
+      if (data && data.length > 0) {
+        setAnnouncements(data);
+      } else {
+        console.log('No announcements found');
+        setAnnouncements([]);
+      }
+    } catch (error) {
+      console.error('Error in fetchAnnouncements:', error);
+    }
+  };
+
+  // Add refresh function
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchAnnouncements();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAnnouncements();
   }, []);
 
   useEffect(() => {
@@ -232,6 +258,14 @@ function HomeScreen() {
           style={styles.scrollView} 
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollViewContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#ffffff"
+              colors={['#3b82f6']}
+            />
+          }
         >
           {/* Top Header Section */}
           <View style={styles.topHeader}>
@@ -297,11 +331,11 @@ function HomeScreen() {
           <View style={styles.statsSection}>
             <View style={[styles.statBox, { backgroundColor: '#f8fafc' }]}>
               <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.presentDays}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Present Days</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Team Availability</ThemedText>
             </View>
             <View style={[styles.statBox, { backgroundColor: '#dbeafe' }]}>
               <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>
-                {stats.leavesTaken}/{stats.totalLeavesAllowed}
+                {stats.leavesTaken}
               </ThemedText>
               <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Leaves Taken</ThemedText>
             </View>
@@ -315,41 +349,44 @@ function HomeScreen() {
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
               <ThemedText style={styles.sectionTitle}>Announcements</ThemedText>
-              <TouchableOpacity style={[styles.seeAllButton, { backgroundColor: 'rgba(255, 255, 255, 0.25)' }]}>
-                <ThemedText style={styles.seeAllText}>See All</ThemedText>
-              </TouchableOpacity>
             </View>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              style={styles.announcementsScroll}
-              contentContainerStyle={styles.announcementsScrollContent}
-            >
-              {announcements.map((announcement, index) => (
-                <TouchableOpacity 
-                  key={announcement.id} 
-                  style={[
-                    styles.announcementCard, 
-                    { backgroundColor: index % 3 === 0 ? '#f1f5f9' : index % 3 === 1 ? '#e0f2fe' : '#fef3c7' }
-                  ]}
-                >
-                  <View style={styles.announcementContent}>
-                    <ThemedText style={styles.announcementTitle}>
-                      {announcement.title}
-                    </ThemedText>
-                    <ThemedText style={styles.announcementDesc}>
-                      {announcement.description}
-                    </ThemedText>
-                    <View style={styles.announcementFooter}>
-                      <ThemedText style={styles.announcementDate}>
-                        {format(new Date(announcement.date), 'MMM d, yyyy')}
+            {announcements.length === 0 ? (
+              <View style={styles.noAnnouncementsContainer}>
+                <ThemedText style={styles.noAnnouncementsText}>No announcements available</ThemedText>
+              </View>
+            ) : (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.announcementsScroll}
+                contentContainerStyle={styles.announcementsScrollContent}
+              >
+                {announcements.map((announcement, index) => (
+                  <TouchableOpacity 
+                    key={announcement.id} 
+                    style={[
+                      styles.announcementCard, 
+                      { backgroundColor: index % 3 === 0 ? '#f1f5f9' : index % 3 === 1 ? '#e0f2fe' : '#fef3c7' }
+                    ]}
+                  >
+                    <View style={styles.announcementContent}>
+                      <ThemedText style={styles.announcementTitle}>
+                        {announcement.title}
                       </ThemedText>
-                      <Ionicons name="chevron-forward" size={16} color="#1e3a8a" />
+                      <ThemedText style={styles.announcementDesc}>
+                        {announcement.content}
+                      </ThemedText>
+                      <View style={styles.announcementFooter}>
+                        <ThemedText style={styles.announcementDate}>
+                          {format(new Date(announcement.created_at), 'MMM d, yyyy')}
+                        </ThemedText>
+                        <Ionicons name="chevron-forward" size={16} color="#1e3a8a" />
+                      </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
 
           {/* Quick Actions Section */}
@@ -720,6 +757,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 5,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+  },
+  noAnnouncementsContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  noAnnouncementsText: {
+    color: '#ffffff',
+    fontSize: 16,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
 });
