@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface User {
     id: string;
@@ -39,6 +40,7 @@ interface PayrollRecord {
 
 export default function PayrollScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [employees, setEmployees] = useState<User[]>([]);
     const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -260,18 +262,33 @@ export default function PayrollScreen() {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={{ flex: 1 }}>
             <LinearGradient
                 colors={['#0f172a', '#1e3a8a', '#2563eb']}
-                style={styles.header}
+                style={[styles.container, { paddingTop: insets.top }]}
             >
                 <View style={styles.headerContent}>
-                    <ThemedText style={styles.headerTitle}>Payroll Management</ThemedText>
+                    <View style={styles.header}>
+                        <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={() => router.back()}
+                        >
+                            <Ionicons name="arrow-back" size={24} color="#ffffff" />
+                        </TouchableOpacity>
+                        <ThemedText style={styles.headerTitle}>Payroll Management</ThemedText>
+                    </View>
                     <View style={styles.dateSelector}>
                         <View style={styles.monthSelector}>
                             <TouchableOpacity
                                 style={styles.monthButton}
-                                onPress={() => setSelectedMonth(prev => (prev > 1 ? prev - 1 : 12))}
+                                onPress={() => {
+                                    if (selectedMonth === 1) {
+                                        setSelectedMonth(12);
+                                        setSelectedYear(selectedYear - 1);
+                                    } else {
+                                        setSelectedMonth(selectedMonth - 1);
+                                    }
+                                }}
                             >
                                 <Ionicons name="chevron-back" size={24} color="#ffffff" />
                             </TouchableOpacity>
@@ -280,163 +297,172 @@ export default function PayrollScreen() {
                             </ThemedText>
                             <TouchableOpacity
                                 style={styles.monthButton}
-                                onPress={() => setSelectedMonth(prev => (prev < 12 ? prev + 1 : 1))}
+                                onPress={() => {
+                                    if (selectedMonth === 12) {
+                                        setSelectedMonth(1);
+                                        setSelectedYear(selectedYear + 1);
+                                    } else {
+                                        setSelectedMonth(selectedMonth + 1);
+                                    }
+                                }}
                             >
                                 <Ionicons name="chevron-forward" size={24} color="#ffffff" />
                             </TouchableOpacity>
                         </View>
-
                         <TouchableOpacity
                             style={styles.yearSelector}
                             onPress={() => setShowYearSelector(!showYearSelector)}
                         >
                             <ThemedText style={styles.yearText}>{selectedYear}</ThemedText>
-                            <Ionicons name={showYearSelector ? "chevron-up" : "chevron-down"} size={20} color="#ffffff" />
+                            <Ionicons name="chevron-down" size={20} color="#ffffff" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                <ScrollView
+                    style={styles.content}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor="#93c5fd"
+                            colors={['#93c5fd']}
+                            progressBackgroundColor="#1e3a8a"
+                        />
+                    }
+                >
+                    <View style={styles.actionsContainer}>
+                        <TouchableOpacity
+                            style={styles.generateButton}
+                            onPress={generatePayroll}
+                        >
+                            <Ionicons name="add-circle-outline" size={24} color="#ffffff" />
+                            <ThemedText style={styles.generateButtonText}>
+                                Generate Payroll
+                            </ThemedText>
                         </TouchableOpacity>
                     </View>
 
-                    {showYearSelector && (
-                        <View style={styles.yearDropdown}>
-                            <ScrollView style={styles.yearScrollView}>
-                                {getYearOptions().map(year => (
-                                    <TouchableOpacity
-                                        key={year}
-                                        style={[
-                                            styles.yearOption,
-                                            year === selectedYear && styles.selectedYearOption
-                                        ]}
-                                        onPress={() => {
-                                            setSelectedYear(year);
-                                            setShowYearSelector(false);
-                                        }}
-                                    >
-                                        <ThemedText style={[
-                                            styles.yearOptionText,
-                                            year === selectedYear && styles.selectedYearOptionText
+                    <View style={styles.recordsContainer}>
+                        {payrollRecords.map((record) => {
+                            const employee = record.user;
+                            if (!employee) return null;
+
+                            return (
+                                <View key={record.id} style={styles.recordCard}>
+                                    <View style={styles.employeeInfo}>
+                                        <Image
+                                            source={{ uri: employee.avatar_url || 'https://via.placeholder.com/50' }}
+                                            style={styles.profilePicture}
+                                        />
+                                        <View style={styles.employeeDetails}>
+                                            <ThemedText style={styles.employeeName}>
+                                                {employee.full_name}
+                                            </ThemedText>
+                                            <ThemedText style={styles.employeePosition}>
+                                                {employee.position || 'No position'}
+                                            </ThemedText>
+                                            <ThemedText style={styles.joiningDate}>
+                                                Joined: {employee.join_date ? new Date(employee.join_date).getFullYear() : 'N/A'}
+                                            </ThemedText>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.salaryInfo}>
+                                        <View style={styles.salaryRow}>
+                                            <ThemedText style={styles.salaryLabel}>Basic Salary:</ThemedText>
+                                            <ThemedText style={styles.salaryValue}>
+                                                {formatCurrency(record.basic_salary)}
+                                            </ThemedText>
+                                        </View>
+                                        <View style={styles.salaryRow}>
+                                            <ThemedText style={styles.salaryLabel}>Allowances:</ThemedText>
+                                            <ThemedText style={styles.salaryValue}>
+                                                {formatCurrency(record.allowances)}
+                                            </ThemedText>
+                                            {record.status === 'pending' && (
+                                                <TouchableOpacity
+                                                    style={styles.editButton}
+                                                    onPress={() => openEditModal(record)}
+                                                >
+                                                    <Ionicons name="pencil" size={16} color="#3b82f6" />
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                        <View style={styles.salaryRow}>
+                                            <ThemedText style={styles.salaryLabel}>Deductions:</ThemedText>
+                                            <ThemedText style={styles.salaryValue}>
+                                                {formatCurrency(record.deductions)}
+                                            </ThemedText>
+                                            {record.status === 'pending' && (
+                                                <TouchableOpacity
+                                                    style={styles.editButton}
+                                                    onPress={() => openEditModal(record)}
+                                                >
+                                                    <Ionicons name="pencil" size={16} color="#3b82f6" />
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                        <View style={[styles.salaryRow, styles.netSalaryRow]}>
+                                            <ThemedText style={styles.netSalaryLabel}>Net Salary:</ThemedText>
+                                            <ThemedText style={styles.netSalaryValue}>
+                                                {formatCurrency(record.net_salary)}
+                                            </ThemedText>
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.statusContainer}>
+                                        <View style={[
+                                            styles.statusBadge,
+                                            { backgroundColor: record.status === 'paid' ? '#22c55e' : '#f59e0b' }
                                         ]}>
-                                            {year}
-                                        </ThemedText>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
-                        </View>
-                    )}
-                </View>
-            </LinearGradient>
-
-            <ScrollView
-                style={styles.content}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        colors={['#3b82f6']}
-                        tintColor="#3b82f6"
-                    />
-                }
-            >
-                <View style={styles.actionsContainer}>
-                    <TouchableOpacity
-                        style={styles.generateButton}
-                        onPress={generatePayroll}
-                    >
-                        <Ionicons name="add-circle" size={24} color="#ffffff" />
-                        <ThemedText style={styles.generateButtonText}>Generate Payroll</ThemedText>
-                    </TouchableOpacity>
-                </View>
-
-                <View style={styles.recordsContainer}>
-                    {payrollRecords.map((record) => {
-                        const employee = record.user;
-                        if (!employee) return null;
-
-                        return (
-                            <View key={record.id} style={styles.recordCard}>
-                                <View style={styles.employeeInfo}>
-                                    <Image
-                                        source={{ uri: employee.avatar_url || 'https://via.placeholder.com/50' }}
-                                        style={styles.profilePicture}
-                                    />
-                                    <View style={styles.employeeDetails}>
-                                        <ThemedText style={styles.employeeName}>
-                                            {employee.full_name}
-                                        </ThemedText>
-                                        <ThemedText style={styles.employeePosition}>
-                                            {employee.position || 'No position'}
-                                        </ThemedText>
-                                        <ThemedText style={styles.joiningDate}>
-                                            Joined: {employee.join_date ? new Date(employee.join_date).getFullYear() : 'N/A'}
-                                        </ThemedText>
-                                    </View>
-                                </View>
-
-                                <View style={styles.salaryInfo}>
-                                    <View style={styles.salaryRow}>
-                                        <ThemedText style={styles.salaryLabel}>Basic Salary:</ThemedText>
-                                        <ThemedText style={styles.salaryValue}>
-                                            {formatCurrency(record.basic_salary)}
-                                        </ThemedText>
-                                    </View>
-                                    <View style={styles.salaryRow}>
-                                        <ThemedText style={styles.salaryLabel}>Allowances:</ThemedText>
-                                        <ThemedText style={styles.salaryValue}>
-                                            {formatCurrency(record.allowances)}
-                                        </ThemedText>
+                                            <ThemedText style={styles.statusText}>
+                                                {record.status === 'paid' ? 'Paid' : 'Pending'}
+                                            </ThemedText>
+                                        </View>
                                         {record.status === 'pending' && (
                                             <TouchableOpacity
-                                                style={styles.editButton}
-                                                onPress={() => openEditModal(record)}
+                                                style={styles.payButton}
+                                                onPress={() => processPayment(record.id)}
                                             >
-                                                <Ionicons name="pencil" size={16} color="#3b82f6" />
+                                                <Ionicons name="cash" size={20} color="#ffffff" />
+                                                <ThemedText style={styles.payButtonText}>Process Payment</ThemedText>
                                             </TouchableOpacity>
                                         )}
                                     </View>
-                                    <View style={styles.salaryRow}>
-                                        <ThemedText style={styles.salaryLabel}>Deductions:</ThemedText>
-                                        <ThemedText style={styles.salaryValue}>
-                                            {formatCurrency(record.deductions)}
-                                        </ThemedText>
-                                        {record.status === 'pending' && (
-                                            <TouchableOpacity
-                                                style={styles.editButton}
-                                                onPress={() => openEditModal(record)}
-                                            >
-                                                <Ionicons name="pencil" size={16} color="#3b82f6" />
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
-                                    <View style={[styles.salaryRow, styles.netSalaryRow]}>
-                                        <ThemedText style={styles.netSalaryLabel}>Net Salary:</ThemedText>
-                                        <ThemedText style={styles.netSalaryValue}>
-                                            {formatCurrency(record.net_salary)}
-                                        </ThemedText>
-                                    </View>
                                 </View>
+                            );
+                        })}
+                    </View>
+                </ScrollView>
 
-                                <View style={styles.statusContainer}>
-                                    <View style={[
-                                        styles.statusBadge,
-                                        { backgroundColor: record.status === 'paid' ? '#22c55e' : '#f59e0b' }
+                {showYearSelector && (
+                    <View style={styles.yearDropdown}>
+                        <ScrollView style={styles.yearScrollView}>
+                            {getYearOptions().map((year) => (
+                                <TouchableOpacity
+                                    key={year}
+                                    style={[
+                                        styles.yearOption,
+                                        selectedYear === year && styles.selectedYearOption
+                                    ]}
+                                    onPress={() => {
+                                        setSelectedYear(year);
+                                        setShowYearSelector(false);
+                                    }}
+                                >
+                                    <ThemedText style={[
+                                        styles.yearOptionText,
+                                        selectedYear === year && styles.selectedYearOptionText
                                     ]}>
-                                        <ThemedText style={styles.statusText}>
-                                            {record.status === 'paid' ? 'Paid' : 'Pending'}
-                                        </ThemedText>
-                                    </View>
-                                    {record.status === 'pending' && (
-                                        <TouchableOpacity
-                                            style={styles.payButton}
-                                            onPress={() => processPayment(record.id)}
-                                        >
-                                            <Ionicons name="cash" size={20} color="#ffffff" />
-                                            <ThemedText style={styles.payButtonText}>Process Payment</ThemedText>
-                                        </TouchableOpacity>
-                                    )}
-                                </View>
-                            </View>
-                        );
-                    })}
-                </View>
-            </ScrollView>
+                                        {year}
+                                    </ThemedText>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
+            </LinearGradient>
 
             {/* Edit Modal */}
             {editingRecord && (
@@ -490,29 +516,29 @@ export default function PayrollScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f8fafc',
-        paddingBottom: 20,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f8fafc',
-    },
-    header: {
-        paddingTop: 60,
-        paddingBottom: 20,
-        borderBottomLeftRadius: 20,
-        borderBottomRightRadius: 20,
     },
     headerContent: {
-        paddingHorizontal: 20,
+        padding: 20,
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    backButton: {
+        padding: 8,
+        marginRight: 12,
     },
     headerTitle: {
-        fontSize: 28,
+        fontSize: 24,
         fontWeight: 'bold',
         color: '#ffffff',
-        marginBottom: 15,
+        flex: 1,
     },
     dateSelector: {
         flexDirection: 'row',
@@ -532,7 +558,7 @@ const styles = StyleSheet.create({
         padding: 8,
     },
     monthText: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '600',
         color: '#ffffff',
         marginHorizontal: 20,
@@ -547,46 +573,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     yearText: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '600',
         color: '#ffffff',
         marginRight: 4,
-    },
-    yearDropdown: {
-        position: 'absolute',
-        top: 100,
-        left: '50%',
-        transform: [{ translateX: -100 }],
-        width: 200,
-        backgroundColor: '#ffffff',
-        borderRadius: 12,
-        padding: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 5,
-        zIndex: 1000,
-        maxHeight: 200,
-    },
-    yearScrollView: {
-        maxHeight: 180,
-    },
-    yearOption: {
-        padding: 12,
-        borderRadius: 8,
-    },
-    selectedYearOption: {
-        backgroundColor: '#3b82f6',
-    },
-    yearOptionText: {
-        fontSize: 16,
-        color: '#1e293b',
-        textAlign: 'center',
-    },
-    selectedYearOptionText: {
-        color: '#ffffff',
-        fontWeight: '600',
     },
     content: {
         flex: 1,
@@ -795,6 +785,42 @@ const styles = StyleSheet.create({
     saveButtonText: {
         color: '#ffffff',
         textAlign: 'center',
+        fontWeight: '600',
+    },
+    yearDropdown: {
+        position: 'absolute',
+        top: 100,
+        left: '50%',
+        transform: [{ translateX: -100 }],
+        width: 200,
+        backgroundColor: '#ffffff',
+        borderRadius: 12,
+        padding: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 5,
+        zIndex: 1000,
+        maxHeight: 200,
+    },
+    yearScrollView: {
+        maxHeight: 180,
+    },
+    yearOption: {
+        padding: 12,
+        borderRadius: 8,
+    },
+    selectedYearOption: {
+        backgroundColor: '#3b82f6',
+    },
+    yearOptionText: {
+        fontSize: 16,
+        color: '#1e293b',
+        textAlign: 'center',
+    },
+    selectedYearOptionText: {
+        color: '#ffffff',
         fontWeight: '600',
     },
 }); 

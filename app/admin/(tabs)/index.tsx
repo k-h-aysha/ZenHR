@@ -408,7 +408,7 @@ export default function AdminDashboard() {
                   data={[
                     { id: '1', icon: 'person-add' as const, color: 'rgba(96, 165, 250, 0.2)', iconColor: '#93c5fd', text: 'Add Employee', route: '/admin/employees' },
                     { id: '2', icon: 'checkmark-circle' as const, color: 'rgba(34, 197, 94, 0.2)', iconColor: '#4ade80', text: 'Tasks', route: '/admin/tasks' },
-                    { id: '3', icon: 'calendar' as const, color: 'rgba(251, 191, 36, 0.2)', iconColor: '#fbbf24', text: 'Leaves', route: '/admin/leaves' },
+                    { id: '3', icon: 'time' as const, color: 'rgba(251, 191, 36, 0.2)', iconColor: '#fbbf24', text: 'Shifts', route: '/admin/shifts' },
                     { id: '4', icon: 'megaphone' as const, color: 'rgba(236, 72, 153, 0.2)', iconColor: '#ec4899', text: 'Announcements', route: '/admin/announcements' },
                     { id: '5', icon: 'cash' as const, color: 'rgba(139, 92, 246, 0.2)', iconColor: '#a78bfa', text: 'Payroll', route: '/admin/payroll' }
                   ]}
