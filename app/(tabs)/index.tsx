@@ -267,8 +267,8 @@ export default function HomeScreen() {
               />
               
               {/* Add an animated overlay for smooth color transitions */}
-              <Animated.View 
-                style={[
+          <Animated.View
+            style={[
                   StyleSheet.absoluteFill, 
                   animatedBackgroundStyle
                 ]} 
@@ -396,7 +396,7 @@ export default function HomeScreen() {
                 <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Help Desk</ThemedText>
               </TouchableOpacity>
             </ScrollView>
-          </View>
+        </View>
         </ScrollView>
         
         {settingsModal}

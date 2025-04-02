@@ -6,7 +6,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '../lib/auth/AuthContext';
-import { useColorScheme } from '../hooks/useColorScheme';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { ThemeProvider as CustomThemeProvider, useTheme } from '@/lib/theme/ThemeContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -14,6 +15,7 @@ SplashScreen.preventAutoHideAsync();
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
   const colorScheme = useColorScheme();
+  const { theme } = useTheme();
 
   useEffect(() => {
     console.log('Navigation state changed:', { user, isLoading });
@@ -25,7 +27,8 @@ function RootLayoutNav() {
         router.replace('/(tabs)');
       }
     } else if (!isLoading) {
-      router.replace('/auth');
+      // When user is null (logged out), redirect to login screen
+      router.replace('/auth/login');
     }
   }, [user, isLoading]);
 
@@ -46,8 +49,19 @@ function RootLayoutNav() {
           <Stack.Screen name="(tabs)" />
         )}
       </Stack>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
     </>
+  );
+}
+
+function ThemeWrapper({ children }: { children: React.ReactNode }) {
+  const { isDark } = useTheme();
+  const systemColorScheme = useColorScheme();
+
+  return (
+    <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+      {children}
+    </ThemeProvider>
   );
 }
 
@@ -55,7 +69,6 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
-  const colorScheme = useColorScheme();
 
   useEffect(() => {
     if (loaded) {
@@ -68,10 +81,12 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <CustomThemeProvider>
       <AuthProvider>
-        <RootLayoutNav />
+        <ThemeWrapper>
+          <RootLayoutNav />
+        </ThemeWrapper>
       </AuthProvider>
-    </ThemeProvider>
+    </CustomThemeProvider>
   );
 }
