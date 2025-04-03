@@ -815,6 +815,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     transform: [{ scale: 1.05 }],
   },
-});
+}); 
 
 export default withAuth(TasksScreen); 

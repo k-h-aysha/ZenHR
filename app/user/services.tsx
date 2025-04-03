@@ -77,12 +77,7 @@ const ServiceCard = ({ title, icon, description, route, onPress, colorTheme = 'b
   const handlePress = () => {
     if (route) {
       console.log('Navigating to route:', route);
-      if (route === '/user/shifts') {
-        // For shifts page, use navigate instead of push to ensure proper navigation
-        router.navigate(route);
-      } else {
-        router.push(route as any);
-      }
+      router.push(route);
     } else if (onPress) {
       onPress();
     }
@@ -254,7 +249,7 @@ export default function ServicesScreen() {
             title="Shift Management"
             icon="time-outline"
             description="View your work schedule and shifts"
-            onPress={() => router.push("/user/shifts")}
+            route="/user/shifts"
             colorTheme="indigo"
             category="other"
           />
