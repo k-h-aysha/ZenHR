@@ -302,9 +302,13 @@ export const resumeClockIn = async (employeeId: string): Promise<AttendanceRecor
     }
 
     // Update first_clock_in to current time for this session and increment num_clock_ins
+    // Preserve the existing total_hours_worked value
     const updateData = {
       first_clock_in: currentTime,
       num_clock_ins: record.num_clock_ins + 1,
+      // Set last_clock_out to null to indicate the user is clocked in now
+      last_clock_out: null
+      // total_hours_worked is preserved from the previous session
     };
     
     console.log('Update data for resume clock in:', updateData);

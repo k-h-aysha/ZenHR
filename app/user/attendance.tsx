@@ -30,6 +30,18 @@ interface AttendanceStats {
   absentDays: number;
 }
 
+// Define type for shift data
+interface ShiftInfo {
+  id: string;
+  user_id: string;
+  shift_type: string;
+  start_time: string;
+  end_time: string;
+  date: string;
+  created_at: string;
+  created_by: string;
+}
+
 // Filter options for date ranges
 type DateFilter = '7days' | '30days' | 'month' | 'year' | 'all';
 
@@ -41,7 +53,7 @@ export default function AttendanceScreen() {
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<DateFilter>('30days');
+  const [activeFilter, setActiveFilter] = useState<DateFilter>('7days');
   const [stats, setStats] = useState<AttendanceStats>({
     totalDays: 0,
     totalHoursWorked: '00:00:00',
@@ -51,7 +63,20 @@ export default function AttendanceScreen() {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [isUsingSampleData, setIsUsingSampleData] = useState(false);
   const [sampleDataMessage, setSampleDataMessage] = useState('');
+  // Add state for shifts
+  const [shifts, setShifts] = useState<ShiftInfo[]>([]);
+  const [loadingShifts, setLoadingShifts] = useState(true);
+  // Add debug information state
+  const [debugInfo, setDebugInfo] = useState({
+    userId: '',
+    matchingShifts: 0,
+    showDebug: true,
+    allShifts: 0,
+    shiftUserIds: [] as string[]
+  });
 
+  // Function to fetch all shifts for debugging
+  
   // Function to fetch attendance records
   const fetchAttendanceRecords = async () => {
     try {
@@ -92,7 +117,12 @@ export default function AttendanceScreen() {
       } else {
         console.log('Found attendance records:', data.length);
         setAttendanceRecords(data);
+        // Apply the 7-day filter by default
+        applyFilter('7days', data);
       }
+      
+      // Also fetch shifts whenever we fetch attendance
+     
     } catch (error) {
       console.error('Unexpected error:', error);
       setIsUsingSampleData(true);
@@ -330,9 +360,15 @@ export default function AttendanceScreen() {
     fetchAttendanceRecords();
   }, []);
 
+  // Add useFocusEffect to refresh data when the screen is focused
   useFocusEffect(
     useCallback(() => {
+      console.log('Attendance screen focused, refreshing data');
       fetchAttendanceRecords();
+      return () => {
+        // Cleanup when screen is unfocused
+        console.log('Attendance screen unfocused');
+      };
     }, [])
   );
 
@@ -356,10 +392,17 @@ export default function AttendanceScreen() {
     </TouchableOpacity>
   );
 
+  // Find shift for a given date
+  const findShiftForDate = (date: string): ShiftInfo | undefined => {
+    return shifts.find(shift => shift.date === date);
+  };
+
   // Render a single attendance day item with enhanced UI
   const renderAttendanceItem = (record: AttendanceRecord) => {
     const date = parseISO(record.date);
     const dayOfWeek = format(date, 'EEE');
+    const dateString = format(date, 'yyyy-MM-dd');
+    const shift = findShiftForDate(dateString);
     
     return (
       <View key={record.id} style={styles.attendanceItem}>
@@ -410,6 +453,17 @@ export default function AttendanceScreen() {
                     {record.total_hours_worked || '00:00:00'}
                   </ThemedText>
                 </View>
+                
+                {shift && (
+                  <View style={styles.shiftInfo}>
+                    <View style={styles.shiftBadge}>
+                      <ThemedText style={styles.shiftType}>{shift.shift_type}</ThemedText>
+                    </View>
+                    <ThemedText style={styles.shiftTime}>
+                      {shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)}
+                    </ThemedText>
+                  </View>
+                )}
               </View>
             </View>
           </View>
@@ -435,6 +489,14 @@ export default function AttendanceScreen() {
     </View>
   );
 
+  // Toggle debug information
+  const toggleDebugInfo = () => {
+    setDebugInfo(prev => ({
+      ...prev,
+      showDebug: !prev.showDebug
+    }));
+  };
+
   return (
     <LinearGradient
       colors={['#1e3a8a', '#0f172a']}
@@ -445,14 +507,22 @@ export default function AttendanceScreen() {
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.push('/(tabs)')}
+          onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
         <ThemedText style={styles.headerTitle}>Attendance</ThemedText>
-        <View style={{ width: 32 }} />
+        
+        {/* Debug toggle */}
+        <TouchableOpacity
+          style={styles.debugButton}
+          onPress={toggleDebugInfo}
+        >
+          <MaterialCommunityIcons name="bug" size={24} color="#ffffff" />
+        </TouchableOpacity>
       </View>
       
+     
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollViewContent}
@@ -878,5 +948,162 @@ const styles = StyleSheet.create({
   exportButtonDisabled: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     opacity: 0.5,
+  },
+  // Styles for shift information
+  shiftInfo: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+  },
+  shiftBadge: {
+    backgroundColor: 'rgba(79, 70, 229, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
+  shiftType: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#4f46e5',
+  },
+  shiftTime: {
+    fontSize: 10,
+    color: '#94a3b8',
+  },
+  shiftsContainer: {
+    marginHorizontal: 20,
+  },
+  shiftCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  shiftHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  shiftDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  shiftTypeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  shiftTypeText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  shiftTimeRow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    padding: 12,
+  },
+  shiftTimeBlock: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  shiftTimeDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: 12,
+  },
+  shiftTimeLabel: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  shiftTimeValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  // Debug styles
+  debugButton: {
+    padding: 8,
+  },
+  debugContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    margin: 10,
+    padding: 15,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+  },
+  debugTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#ef4444',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  debugItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  debugLabel: {
+    fontSize: 14,
+    color: '#94a3b8',
+  },
+  debugValue: {
+    fontSize: 14,
+    color: '#f8fafc',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  debugSection: {
+    marginVertical: 10,
+  },
+  debugSectionTitle: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginBottom: 8,
+  },
+  debugUserIds: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    padding: 10,
+    maxHeight: 150,
+  },
+  debugUserIdItem: {
+    marginBottom: 4,
+  },
+  debugUserIdText: {
+    fontSize: 12,
+    color: '#f8fafc',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  debugUserIdMatch: {
+    color: '#4ade80',
+    fontWeight: 'bold',
+  },
+  debugNoData: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontStyle: 'italic',
+  },
+  debugRefreshButton: {
+    backgroundColor: '#3b82f6',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  debugRefreshText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 }); 

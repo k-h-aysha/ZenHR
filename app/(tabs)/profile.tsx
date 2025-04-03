@@ -135,7 +135,11 @@ function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={true}
+    >
       <View style={styles.headerContainer}>
         <View style={styles.profileImageContainer}>
           <TouchableOpacity onPress={pickImage} style={styles.profileImageWrapper}>
@@ -211,6 +215,8 @@ function ProfileScreen() {
       <TouchableOpacity style={styles.editProfileButton} onPress={handleEditProfile}>
         <ThemedText style={styles.editProfileButtonText}>Edit Profile</ThemedText>
       </TouchableOpacity>
+      
+      <View style={styles.extraSpace} />
     </ScrollView>
   );
 }
@@ -222,6 +228,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0f172a',
+  },
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  extraSpace: {
+    height: 60,
   },
   loadingContainer: {
     flex: 1,

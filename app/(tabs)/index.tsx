@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, interpolateColor, useDerivedValue, withSpring } from 'react-native-reanimated';
 import { useAuth, withAuth } from '../../lib/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { clockIn, clockOut, getTodayAttendance, finalizeDayAttendance, resetAttendanceForNewDay, resumeClockIn } from '@/lib/attendance';
 
 import { ThemedText } from '@/components/ThemedText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +28,28 @@ type Announcement = {
   created_at: string;
 };
 
+// Helper function to add two time strings in format HH:MM:SS
+const addTimes = (time1: string, time2: string): string => {
+  const [h1, m1, s1] = time1.split(':').map(Number);
+  const [h2, m2, s2] = time2.split(':').map(Number);
+  
+  let totalSeconds = s1 + s2;
+  let totalMinutes = m1 + m2;
+  let totalHours = h1 + h2;
+  
+  if (totalSeconds >= 60) {
+    totalMinutes += Math.floor(totalSeconds / 60);
+    totalSeconds %= 60;
+  }
+  
+  if (totalMinutes >= 60) {
+    totalHours += Math.floor(totalMinutes / 60);
+    totalMinutes %= 60;
+  }
+  
+  return `${totalHours.toString().padStart(2, '0')}:${totalMinutes.toString().padStart(2, '0')}:${totalSeconds.toString().padStart(2, '0')}`;
+};
+
 function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -36,6 +59,8 @@ function HomeScreen() {
     startTime: Date;
   } | null>(null);
   const [totalWorkTime, setTotalWorkTime] = useState("00:00:00");
+  const [currentSessionTime, setCurrentSessionTime] = useState("00:00:00");
+  const [previouslyAccumulatedTime, setPreviouslyAccumulatedTime] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const slidePosition = useSharedValue(0);
@@ -43,11 +68,11 @@ function HomeScreen() {
   const maxSlideDistance = width * 0.6; // 60% of screen width
   const colorTransition = useSharedValue(isClockedIn ? 1 : 0);
   
-  // Demo data for leaves and stats
-  const [stats] = useState({
+  // Stats state
+  const [stats, setStats] = useState({
     presentDays: 18,
-    leavesTaken: 3,
-    tasksLeft: 5,
+    leavesTaken: 0,
+    tasksLeft: 0,
     totalLeavesAllowed: 24
   });
 
@@ -55,6 +80,7 @@ function HomeScreen() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   const router = useRouter();
+  const { user } = useAuth();
 
   // Add a ref to track the current state reliably
   const clockStateRef = useRef(false);
@@ -72,6 +98,164 @@ function HomeScreen() {
 
     return () => clearInterval(timer);
   }, []);
+
+  // Fetch tasks from the database to update stats
+  const fetchTasksCount = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('Fetching task count for user ID:', user.id);
+      
+      // Convert user.id to string to match with assigned_to if needed
+      const userIdString = String(user.id);
+      
+      // Fetch tasks for the current user
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('status')
+        .or(`assigned_to.eq.${user.id},assigned_to.eq.${userIdString}`);
+        
+      if (error) {
+        console.error('Error fetching tasks count:', error);
+        return;
+      }
+      
+      if (data) {
+        // Count tasks that are still pending or in progress
+        const pendingAndInProgressTasks = data.filter(
+          task => task.status === 'pending' || task.status === 'in_progress'
+        ).length;
+        
+        console.log(`Found ${pendingAndInProgressTasks} pending/in-progress tasks`);
+        
+        // Update stats with real-time count
+        setStats(prevStats => ({
+          ...prevStats,
+          tasksLeft: pendingAndInProgressTasks
+        }));
+      }
+    } catch (error) {
+      console.error('Exception fetching tasks count:', error);
+    }
+  };
+
+  // Fetch leaves count from the database
+  const fetchLeavesCount = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('Fetching approved leaves count for user ID:', user.id);
+      
+      // Convert user.id to string to match with user_id if needed
+      const userIdString = String(user.id);
+      
+      // First check if the leave_requests table exists
+      try {
+        const { data: tableCheck, error: tableError } = await supabase
+          .from('leave_requests')
+          .select('*')
+          .limit(1);
+          
+        if (tableError) {
+          console.error('Error checking leave_requests table:', tableError);
+          if (tableError.message.includes('relation "leave_requests" does not exist')) {
+            console.log('The leave_requests table does not exist in the database.');
+            return;
+          }
+        }
+        
+        if (tableCheck) {
+          console.log('leave_requests table exists, checking data structure...', 
+            tableCheck.length > 0 ? JSON.stringify(tableCheck[0], null, 2) : 'no sample data');
+        }
+      } catch (e) {
+        console.error('Exception checking leave_requests table:', e);
+      }
+      
+      // Attempt several different queries to locate the user's leave requests
+      
+      // First try checking for a 'user_id' field
+      const { data: userIdData, error: userIdError } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .or(`user_id.eq.${user.id},user_id.eq.${userIdString}`)
+        .eq('status', 'approved');
+      
+      if (userIdError) {
+        console.error('Error fetching leaves with user_id:', userIdError);
+      } else if (userIdData && userIdData.length > 0) {
+        console.log(`Found ${userIdData.length} approved leaves with user_id field`);
+        
+        // Update stats with real-time count of approved leaves
+        setStats(prevStats => ({
+          ...prevStats,
+          leavesTaken: userIdData.length
+        }));
+        return;
+      }
+      
+      // Try checking for an 'employee_id' field
+      const { data: employeeIdData, error: employeeIdError } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .or(`employee_id.eq.${user.id},employee_id.eq.${userIdString}`)
+        .eq('status', 'approved');
+      
+      if (employeeIdError) {
+        console.error('Error fetching leaves with employee_id:', employeeIdError);
+      } else if (employeeIdData && employeeIdData.length > 0) {
+        console.log(`Found ${employeeIdData.length} approved leaves with employee_id field`);
+        
+        // Update stats with real-time count of approved leaves
+        setStats(prevStats => ({
+          ...prevStats,
+          leavesTaken: employeeIdData.length
+        }));
+        return;
+      }
+      
+      // Last resort, try to list all leave requests to see structure
+      const { data: allLeaves, error: allLeavesError } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .limit(5);
+        
+      if (allLeavesError) {
+        console.error('Error fetching all leaves:', allLeavesError);
+      } else if (allLeaves && allLeaves.length > 0) {
+        console.log('Sample leave requests found:', JSON.stringify(allLeaves.slice(0, 2), null, 2));
+        console.log('Available fields:', Object.keys(allLeaves[0]));
+        
+        // Try to determine the correct user ID field from the data
+        const userIdField = Object.keys(allLeaves[0]).find(key => 
+          key.includes('user') || key.includes('employee') || key === 'id'
+        );
+        
+        if (userIdField) {
+          console.log(`Attempting to use detected field: ${userIdField}`);
+          
+          // Filter leaves manually
+          const userApprovedLeaves = allLeaves.filter(leave => 
+            String(leave[userIdField]) === userIdString && 
+            leave.status === 'approved'
+          );
+          
+          console.log(`Found ${userApprovedLeaves.length} approved leaves using ${userIdField} field`);
+          
+          if (userApprovedLeaves.length > 0) {
+            setStats(prevStats => ({
+              ...prevStats,
+              leavesTaken: userApprovedLeaves.length
+            }));
+          }
+        }
+      } else {
+        console.log('No leave requests found in the database');
+      }
+    } catch (error) {
+      console.error('Exception fetching leaves count:', error);
+    }
+  };
 
   // Fetch announcements from database
   const fetchAnnouncements = async () => {
@@ -104,7 +288,11 @@ function HomeScreen() {
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchAnnouncements();
+      await Promise.all([
+        fetchAnnouncements(),
+        fetchTasksCount(),
+        fetchLeavesCount()
+      ]);
     } catch (error) {
       console.error('Error refreshing data:', error);
     } finally {
@@ -114,19 +302,105 @@ function HomeScreen() {
 
   useEffect(() => {
     fetchAnnouncements();
+    fetchTasksCount(); // Fetch tasks count when component mounts
+    fetchLeavesCount(); // Fetch leaves count when component mounts
+    checkCurrentAttendance(); // Check if user is already clocked in
   }, []);
+
+  // Check current attendance status
+  const checkCurrentAttendance = async () => {
+    if (!user) return;
+    
+    try {
+      const record = await getTodayAttendance(user.id);
+      
+      if (record) {
+        // Get existing total hours as starting point
+        if (record.total_hours_worked) {
+          setTotalWorkTime(record.total_hours_worked);
+          
+          // If there's a last_clock_out, it means we need to save the previous time
+          // for when the user clocks back in
+          if (record.last_clock_out) {
+            setPreviouslyAccumulatedTime(record.total_hours_worked);
+          }
+        }
+        
+        // Check if user is currently clocked in (has first_clock_in but no last_clock_out)
+        if (record.first_clock_in && !record.last_clock_out) {
+          // User is already clocked in
+          const startTime = new Date();
+          // Extract hours, minutes, seconds from first_clock_in
+          const [hours, minutes, seconds] = record.first_clock_in.split(':').map(Number);
+          startTime.setHours(hours, minutes, seconds, 0);
+          
+          setCurrentSession({
+            id: record.id,
+            startTime: startTime
+          });
+          setIsClockedIn(true);
+          clockStateRef.current = true;
+          // Transition to red color
+          colorTransition.value = withTiming(1, { duration: 500 });
+        }
+      }
+    } catch (error) {
+      console.error('Error checking current attendance:', error);
+    }
+  };
 
   useEffect(() => {
     if (currentSession) {
       // Update total work time every second when clocked in
       const timer = setInterval(() => {
-        const duration = calculateDuration(currentSession.startTime, new Date());
-        setTotalWorkTime(duration);
+        const now = new Date();
+        const sessionDuration = calculateDuration(currentSession.startTime, now);
+        setCurrentSessionTime(sessionDuration);
+        
+        // If there's previously accumulated time, add it to the current session
+        if (previouslyAccumulatedTime) {
+          const totalDuration = addTimes(previouslyAccumulatedTime, sessionDuration);
+          setTotalWorkTime(totalDuration);
+        } else {
+          setTotalWorkTime(sessionDuration);
+        }
       }, 1000);
 
-      return () => clearInterval(timer);
+      // Set up a timer to finalize day's attendance just before midnight
+      const now = new Date();
+      const midnight = new Date(now);
+      midnight.setHours(23, 59, 0, 0);
+      const timeUntilMidnight = midnight.getTime() - now.getTime();
+      
+      const midnightTimer = setTimeout(async () => {
+        if (clockStateRef.current && user) {
+          try {
+            // Finalize the day's attendance and start a new day
+            await finalizeDayAttendance(user.id);
+            await resetAttendanceForNewDay();
+            
+            // Clock in for the next day automatically if still working
+            const nextDaySession = await clockIn(user.id);
+            if (!('message' in nextDaySession)) {
+              setCurrentSession({
+                id: nextDaySession.id,
+                startTime: new Date()
+              });
+              // Reset work time for the new day
+              setTotalWorkTime("00:00:00");
+            }
+          } catch (error) {
+            console.error('Error handling day change:', error);
+          }
+        }
+      }, timeUntilMidnight);
+
+      return () => {
+        clearInterval(timer);
+        clearTimeout(midnightTimer);
+      };
     }
-  }, [currentSession]);
+  }, [currentSession, user]);
 
   const calculateDuration = (startTime: Date, endTime: Date) => {
     const durationMs = endTime.getTime() - startTime.getTime();
@@ -137,41 +411,87 @@ function HomeScreen() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const handleClockInOut = () => {
+  const handleClockInOut = async () => {
     console.log(`Before state change: isClockedIn=${isClockedIn}, ref=${clockStateRef.current}`);
     
-    // Use the current value of clockStateRef instead of isClockedIn
-    if (!clockStateRef.current) {
-      // CLOCK IN
-      const newSession = {
-        id: Date.now().toString(),
-        startTime: new Date(),
-      };
-      setCurrentSession(newSession);
-      setIsClockedIn(true);
-      clockStateRef.current = true;
-      // Transition to red color
-      colorTransition.value = withTiming(1, { duration: 500 });
-      console.log("Clocking IN - changed state to true");
-      Alert.alert('Success', 'You have clocked in successfully');
-    } else {
-      // CLOCK OUT
-      if (currentSession) {
-        setCurrentSession(null);
-        setIsClockedIn(false);
-        clockStateRef.current = false;
-        setTotalWorkTime("00:00:00");
-        // Explicitly transition back to blue color
-        colorTransition.value = withTiming(0, { duration: 500 });
-        console.log("Clocking OUT - changed state to false");
-        Alert.alert('Success', 'You have clocked out successfully');
-      }
+    if (!user) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
     }
     
-    // Give the state time to update before logging
-    setTimeout(() => {
-      console.log(`After state change: isClockedIn=${isClockedIn}, ref=${clockStateRef.current}`);
-    }, 100);
+    try {
+      // Use the current value of clockStateRef instead of isClockedIn
+      if (!clockStateRef.current) {
+        // CLOCK IN - Either first clock in or resuming
+        let response;
+        const todayRecord = await getTodayAttendance(user.id);
+        
+        if (todayRecord && todayRecord.last_clock_out) {
+          // Resume clock in - already have a record for today but were clocked out
+          response = await resumeClockIn(user.id);
+          console.log("Resuming clock in with existing record");
+          
+          // Keep the existing total hours as base
+          if (todayRecord.total_hours_worked) {
+            setPreviouslyAccumulatedTime(todayRecord.total_hours_worked);
+            setTotalWorkTime(todayRecord.total_hours_worked);
+          }
+        } else {
+          // First clock in for the day
+          response = await clockIn(user.id);
+          console.log("First clock in for today");
+          setTotalWorkTime("00:00:00");
+          setPreviouslyAccumulatedTime(null);
+        }
+        
+        if ('message' in response) {
+          throw new Error(response.message);
+        }
+        
+        const startTime = new Date();
+        // Get current time components for consistent calculation
+        const now = new Date();
+        startTime.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
+        
+        const newSession = {
+          id: response.id,
+          startTime: startTime,
+        };
+        
+        setCurrentSession(newSession);
+        setIsClockedIn(true);
+        clockStateRef.current = true;
+        // Transition to red color
+        colorTransition.value = withTiming(1, { duration: 500 });
+        console.log("Clocked IN successfully");
+        Alert.alert('Success', 'You have clocked in successfully');
+      } else {
+        // CLOCK OUT
+        if (currentSession) {
+          const response = await clockOut(user.id);
+          
+          if ('message' in response) {
+            throw new Error(response.message);
+          }
+          
+          // Save the latest total hours worked from the database
+          if (response.total_hours_worked) {
+            setTotalWorkTime(response.total_hours_worked);
+          }
+          
+          setCurrentSession(null);
+          setIsClockedIn(false);
+          clockStateRef.current = false;
+          // Explicitly transition back to blue color
+          colorTransition.value = withTiming(0, { duration: 500 });
+          console.log("Clocked OUT successfully");
+          Alert.alert('Success', 'You have clocked out successfully');
+        }
+      }
+    } catch (error) {
+      console.error('Clock in/out operation failed:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to process attendance');
+    }
   };
 
   const animatedBackgroundStyle = useAnimatedStyle(() => {
@@ -322,8 +642,28 @@ function HomeScreen() {
             </TouchableOpacity>
             
             <View style={styles.workTimeContainer}>
-              <ThemedText style={styles.workTimeLabel}>Total Work Time Today</ThemedText>
-              <ThemedText style={styles.workTimeText}>{totalWorkTime}</ThemedText>
+              {previouslyAccumulatedTime ? (
+                <>
+                  <View style={styles.workTimeRow}>
+                    <ThemedText style={styles.workTimeLabel}>Previous Hours</ThemedText>
+                    <ThemedText style={styles.previousTimeText}>{previouslyAccumulatedTime}</ThemedText>
+                  </View>
+                  <View style={styles.workTimeRow}>
+                    <ThemedText style={styles.workTimeLabel}>Current Session</ThemedText>
+                    <ThemedText style={styles.sessionTimeText}>{currentSessionTime}</ThemedText>
+                  </View>
+                  <View style={styles.workTimeDivider} />
+                  <View style={styles.workTimeTotalRow}>
+                    <ThemedText style={styles.workTimeLabel}>Total Today</ThemedText>
+                    <ThemedText style={styles.workTimeText}>{totalWorkTime}</ThemedText>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.workTimeSingleRow}>
+                  <ThemedText style={styles.workTimeLabel}>Work Time Today</ThemedText>
+                  <ThemedText style={styles.workTimeText}>{totalWorkTime}</ThemedText>
+                </View>
+              )}
             </View>
           </View>
 
@@ -333,16 +673,22 @@ function HomeScreen() {
               <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.presentDays}</ThemedText>
               <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Team Availability</ThemedText>
             </View>
-            <View style={[styles.statBox, { backgroundColor: '#dbeafe' }]}>
+            <TouchableOpacity 
+              style={[styles.statBox, { backgroundColor: '#dbeafe' }]}
+              onPress={() => router.push('/user/leave-history')}
+            >
               <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>
                 {stats.leavesTaken}
               </ThemedText>
               <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Leaves Taken</ThemedText>
-            </View>
-            <View style={[styles.statBox, { backgroundColor: '#fef3c7' }]}>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.statBox, { backgroundColor: '#fef3c7' }]}
+              onPress={() => router.push('/(tabs)/tasks')}
+            >
               <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.tasksLeft}</ThemedText>
               <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Tasks Left</ThemedText>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Announcements Section */}
@@ -418,12 +764,16 @@ function HomeScreen() {
                 <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Services</ThemedText>
               </TouchableOpacity>
               
-              <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#fef3c7' }]}>
+              <TouchableOpacity 
+                style={[styles.quickActionButton, { backgroundColor: '#fef3c7' }]}
+                onPress={() => router.push('/user/payroll')}
+              >
                 <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(251, 191, 36, 0.2)' }]}>
-                  <Ionicons name="people-outline" size={24} color="#1e3a8a" />
+                  <Ionicons name="cash-outline" size={24} color="#1e3a8a" />
                 </View>
-                <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Team Chat</ThemedText>
+                <ThemedText style={[styles.quickActionText, { color: '#1e3a8a' }]}>Payroll</ThemedText>
               </TouchableOpacity>
+              
               <TouchableOpacity style={[styles.quickActionButton, { backgroundColor: '#f0fdf4' }]}>
                 <View style={[styles.quickActionIconContainer, { backgroundColor: 'rgba(74, 222, 128, 0.2)' }]}>
                   <Ionicons name="help-circle-outline" size={24} color="#1e3a8a" />
@@ -554,6 +904,38 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     width: '100%',
   },
+  workTimeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 3,
+  },
+  workTimeDivider: {
+    height: 1,
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginVertical: 5,
+  },
+  workTimeTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 3,
+  },
+  previousTimeText: {
+    color: '#93c5fd',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+  },
+  sessionTimeText: {
+    color: '#38bdf8',
+    fontSize: 16,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
+  },
   workTimeLabel: {
     color: '#ffffff',
     opacity: 0.8,
@@ -564,9 +946,15 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 24,
     fontWeight: '600',
-    marginTop: 5,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-medium',
     letterSpacing: 1,
+  },
+  workTimeSingleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 3,
   },
   statsSection: {
     flexDirection: 'row',
