@@ -330,9 +330,15 @@ export default function AttendanceScreen() {
     fetchAttendanceRecords();
   }, []);
 
+  // Add useFocusEffect to refresh data when the screen is focused
   useFocusEffect(
     useCallback(() => {
+      console.log('Attendance screen focused, refreshing data');
       fetchAttendanceRecords();
+      return () => {
+        // Cleanup when screen is unfocused
+        console.log('Attendance screen unfocused');
+      };
     }, [])
   );
 
@@ -445,7 +451,7 @@ export default function AttendanceScreen() {
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => router.push('/(tabs)')}
+          onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>

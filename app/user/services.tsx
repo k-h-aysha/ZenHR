@@ -9,7 +9,7 @@ import { Tabs } from 'expo-router';
 
 // Define safe icon names that exist in Ionicons
 type IconName = 'calendar' | 'time' | 'checkmark-circle' | 'cash' | 
-                'analytics' | 'people' | 'document-text' | 'gift' | 'arrow-back';
+                'analytics' | 'people' | 'document-text' | 'gift' | 'arrow-back' | 'time-outline';
 
 // Define color themes for service cards - simplified with single background colors
 const colorThemes = {
@@ -76,7 +76,13 @@ const ServiceCard = ({ title, icon, description, route, onPress, colorTheme = 'b
   
   const handlePress = () => {
     if (route) {
-      router.push(route as any);
+      console.log('Navigating to route:', route);
+      if (route === '/user/shifts') {
+        // For shifts page, use navigate instead of push to ensure proper navigation
+        router.navigate(route);
+      } else {
+        router.push(route as any);
+      }
     } else if (onPress) {
       onPress();
     }
@@ -239,14 +245,16 @@ export default function ServicesScreen() {
             title="Payroll"
             icon="cash"
             description="View your salary details and pay slips"
+            route="/user/payroll"
             colorTheme="sky"
             category="payroll"
           />
           
           <ServiceCard
-            title="Performance"
-            icon="analytics"
-            description="Check your performance metrics"
+            title="Shift Management"
+            icon="time-outline"
+            description="View your work schedule and shifts"
+            onPress={() => router.push("/user/shifts")}
             colorTheme="indigo"
             category="other"
           />

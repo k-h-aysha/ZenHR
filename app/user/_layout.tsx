@@ -12,6 +12,9 @@ export default function UserLayout() {
         <Stack.Screen name="services" />
         <Stack.Screen name="leave-history" />
         <Stack.Screen name="apply-leave" />
+        <Stack.Screen name="shifts" />
+        <Stack.Screen name="attendance" />
+        <Stack.Screen name="payroll" />
       </Stack>
     </>
   );
