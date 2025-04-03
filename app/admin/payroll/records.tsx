@@ -287,11 +287,11 @@ export default function PayrollRecordsScreen() {
             <View style={styles.payrollDetails}>
                 <View style={styles.salaryInfo}>
                     <ThemedText style={styles.salaryLabel}>Basic Salary:</ThemedText>
-                    <ThemedText style={styles.salaryValue}>SAR {item.basic_salary.toFixed(2)}</ThemedText>
+                    <ThemedText style={styles.salaryValue}>INR {item.basic_salary.toFixed(2)}</ThemedText>
                 </View>
                 <View style={styles.salaryInfo}>
                     <ThemedText style={styles.salaryLabel}>Net Salary:</ThemedText>
-                    <ThemedText style={styles.salaryValue}>SAR {item.net_salary.toFixed(2)}</ThemedText>
+                    <ThemedText style={styles.salaryValue}>INR {item.net_salary.toFixed(2)}</ThemedText>
                 </View>
             </View>
         </TouchableOpacity>
@@ -353,25 +353,25 @@ export default function PayrollRecordsScreen() {
                                 <View style={styles.detailsRow}>
                                     <ThemedText style={styles.detailsLabel}>Basic Salary:</ThemedText>
                                     <ThemedText style={styles.detailsValue}>
-                                        SAR {selectedRecord.basic_salary.toFixed(2)}
+                                        INR {selectedRecord.basic_salary.toFixed(2)}
                                     </ThemedText>
                                 </View>
                                 <View style={styles.detailsRow}>
                                     <ThemedText style={styles.detailsLabel}>Allowances:</ThemedText>
                                     <ThemedText style={styles.detailsValue}>
-                                        SAR {selectedRecord.allowances.toFixed(2)}
+                                        INR {selectedRecord.allowances.toFixed(2)}
                                     </ThemedText>
                                 </View>
                                 <View style={styles.detailsRow}>
                                     <ThemedText style={styles.detailsLabel}>Deductions:</ThemedText>
                                     <ThemedText style={styles.detailsValue}>
-                                        SAR {selectedRecord.deductions.toFixed(2)}
+                                        INR {selectedRecord.deductions.toFixed(2)}
                                     </ThemedText>
                                 </View>
                                 <View style={styles.detailsRow}>
                                     <ThemedText style={styles.detailsLabel}>Net Salary:</ThemedText>
                                     <ThemedText style={styles.detailsValue}>
-                                        SAR {selectedRecord.net_salary.toFixed(2)}
+                                        INR {selectedRecord.net_salary.toFixed(2)}
                                     </ThemedText>
                                 </View>
                                 <View style={styles.detailsRow}>
@@ -548,7 +548,7 @@ export default function PayrollRecordsScreen() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <ThemedText style={styles.label}>Basic Salary (SAR) *</ThemedText>
+                                <ThemedText style={styles.label}>Basic Salary (INR) *</ThemedText>
                                 <TextInput
                                     style={styles.input}
                                     value={formData.basic_salary}
@@ -560,7 +560,7 @@ export default function PayrollRecordsScreen() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <ThemedText style={styles.label}>Allowances (SAR)</ThemedText>
+                                <ThemedText style={styles.label}>Allowances (INR)</ThemedText>
                                 <TextInput
                                     style={styles.input}
                                     value={formData.allowances}
@@ -572,7 +572,7 @@ export default function PayrollRecordsScreen() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <ThemedText style={styles.label}>Deductions (SAR)</ThemedText>
+                                <ThemedText style={styles.label}>Deductions (INR)</ThemedText>
                                 <TextInput
                                     style={styles.input}
                                     value={formData.deductions}

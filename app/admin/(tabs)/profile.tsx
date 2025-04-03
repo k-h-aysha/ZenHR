@@ -129,9 +129,18 @@ function AdminProfileScreen() {
         .select('*', { count: 'exact', head: true })
         .eq('role', 'employee');
 
-      const { count: departmentsCount } = await supabase
+      // Get unique departments from users table, excluding null values
+      const { data: departmentsData, error: departmentsError } = await supabase
         .from('users')
-        .select('*', { count: 'exact', head: true })
+        .select('dept')
+        .eq('role', 'employee')
+        .not('dept', 'is', null);
+
+      if (departmentsError) throw departmentsError;
+
+      // Count unique departments
+      const uniqueDepartments = new Set(departmentsData?.map(user => user.dept) || []);
+      const departmentsCount = uniqueDepartments.size;
 
       const { count: activeLeavesCount } = await supabase
         .from('leave_requests')
@@ -140,7 +149,7 @@ function AdminProfileScreen() {
 
       setStats([
         { label: 'Employees', value: employeesCount?.toString() || '0' },
-        { label: 'Departments', value: departmentsCount?.toString() || '0' },
+        { label: 'Departments', value: departmentsCount.toString() },
         { label: 'Active Leaves', value: activeLeavesCount?.toString() || '0' },
       ]);
     } catch (error) {

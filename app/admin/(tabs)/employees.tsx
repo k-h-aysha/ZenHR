@@ -481,7 +481,7 @@ export default function AdminEmployeesScreen() {
                 </View>
                 <View style={styles.detailsRow}>
                   <ThemedText style={styles.detailsLabel}>Salary:</ThemedText>
-                  <ThemedText style={styles.detailsValue}>SAR {selectedEmployee.salary?.toFixed(2) || '0.00'}</ThemedText>
+                  <ThemedText style={styles.detailsValue}>INR {selectedEmployee.salary?.toFixed(2) || '0.00'}</ThemedText>
                 </View>
                 <View style={styles.detailsRow}>
                   <ThemedText style={styles.detailsLabel}>Joining Date:</ThemedText>
@@ -686,7 +686,7 @@ export default function AdminEmployeesScreen() {
               </View>
 
               <View style={styles.formGroup}>
-                <ThemedText style={styles.label}>Salary (SAR) *</ThemedText>
+                <ThemedText style={styles.label}>Salary (INR) *</ThemedText>
                 <TextInput
                   style={styles.input}
                   value={formData.salary}

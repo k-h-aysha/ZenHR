@@ -239,14 +239,17 @@ export default function AdminDashboard() {
         .eq('status', 'approved');
 
       // Fetch unique departments from users table
-      const { data: departmentsData } = await supabase
+      const { data: departmentsData, error: departmentsError } = await supabase
         .from('users')
         .select('dept')
         .eq('role', 'employee')
         .not('dept', 'is', null);
 
-      // Get unique departments count
-      const uniqueDepartments = new Set(departmentsData?.map(user => user.dept));
+      if (departmentsError) throw departmentsError;
+
+      // Count unique departments
+      const uniqueDepartments = new Set(departmentsData?.map(user => user.dept) || []);
+      console.log('Unique departments found:', Array.from(uniqueDepartments));
       const departmentsCount = uniqueDepartments.size;
 
       // Fetch pending requests

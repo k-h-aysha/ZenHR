@@ -236,9 +236,9 @@ export default function PayrollScreen() {
     };
 
     const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-SA', {
+        return new Intl.NumberFormat('en-IN', {
             style: 'currency',
-            currency: 'SAR',
+            currency: 'INR',
             minimumFractionDigits: 2,
             maximumFractionDigits: 2
         }).format(amount);
