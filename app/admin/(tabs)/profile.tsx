@@ -142,6 +142,7 @@ function AdminProfileScreen() {
       const uniqueDepartments = new Set(departmentsData?.map(user => user.dept) || []);
       const departmentsCount = uniqueDepartments.size;
 
+      // Get active leaves count
       const { count: activeLeavesCount } = await supabase
         .from('leave_requests')
         .select('*', { count: 'exact', head: true })

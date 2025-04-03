@@ -146,111 +146,29 @@ function HomeScreen() {
     try {
       console.log('Fetching approved leaves count for user ID:', user.id);
       
-      // Convert user.id to string to match with user_id if needed
+      // Convert user.id to string to match with employee_id if needed
       const userIdString = String(user.id);
       
-      // First check if the leave_requests table exists
-      try {
-        const { data: tableCheck, error: tableError } = await supabase
-          .from('leave_requests')
-          .select('*')
-          .limit(1);
-          
-        if (tableError) {
-          console.error('Error checking leave_requests table:', tableError);
-          if (tableError.message.includes('relation "leave_requests" does not exist')) {
-            console.log('The leave_requests table does not exist in the database.');
-            return;
-          }
-        }
-        
-        if (tableCheck) {
-          console.log('leave_requests table exists, checking data structure...', 
-            tableCheck.length > 0 ? JSON.stringify(tableCheck[0], null, 2) : 'no sample data');
-        }
-      } catch (e) {
-        console.error('Exception checking leave_requests table:', e);
-      }
-      
-      // Attempt several different queries to locate the user's leave requests
-      
-      // First try checking for a 'user_id' field
-      const { data: userIdData, error: userIdError } = await supabase
+      // Query leave requests using employee_id
+      const { data: leavesData, error: leavesError } = await supabase
         .from('leave_requests')
         .select('*')
-        .or(`user_id.eq.${user.id},user_id.eq.${userIdString}`)
+        .eq('employee_id', user.id)
         .eq('status', 'approved');
       
-      if (userIdError) {
-        console.error('Error fetching leaves with user_id:', userIdError);
-      } else if (userIdData && userIdData.length > 0) {
-        console.log(`Found ${userIdData.length} approved leaves with user_id field`);
+      if (leavesError) {
+        console.error('Error fetching leaves:', leavesError);
+        return;
+      }
+      
+      if (leavesData) {
+        console.log(`Found ${leavesData.length} approved leaves`);
         
         // Update stats with real-time count of approved leaves
         setStats(prevStats => ({
           ...prevStats,
-          leavesTaken: userIdData.length
+          leavesTaken: leavesData.length
         }));
-        return;
-      }
-      
-      // Try checking for an 'employee_id' field
-      const { data: employeeIdData, error: employeeIdError } = await supabase
-        .from('leave_requests')
-        .select('*')
-        .or(`employee_id.eq.${user.id},employee_id.eq.${userIdString}`)
-        .eq('status', 'approved');
-      
-      if (employeeIdError) {
-        console.error('Error fetching leaves with employee_id:', employeeIdError);
-      } else if (employeeIdData && employeeIdData.length > 0) {
-        console.log(`Found ${employeeIdData.length} approved leaves with employee_id field`);
-        
-        // Update stats with real-time count of approved leaves
-        setStats(prevStats => ({
-          ...prevStats,
-          leavesTaken: employeeIdData.length
-        }));
-        return;
-      }
-      
-      // Last resort, try to list all leave requests to see structure
-      const { data: allLeaves, error: allLeavesError } = await supabase
-        .from('leave_requests')
-        .select('*')
-        .limit(5);
-        
-      if (allLeavesError) {
-        console.error('Error fetching all leaves:', allLeavesError);
-      } else if (allLeaves && allLeaves.length > 0) {
-        console.log('Sample leave requests found:', JSON.stringify(allLeaves.slice(0, 2), null, 2));
-        console.log('Available fields:', Object.keys(allLeaves[0]));
-        
-        // Try to determine the correct user ID field from the data
-        const userIdField = Object.keys(allLeaves[0]).find(key => 
-          key.includes('user') || key.includes('employee') || key === 'id'
-        );
-        
-        if (userIdField) {
-          console.log(`Attempting to use detected field: ${userIdField}`);
-          
-          // Filter leaves manually
-          const userApprovedLeaves = allLeaves.filter(leave => 
-            String(leave[userIdField]) === userIdString && 
-            leave.status === 'approved'
-          );
-          
-          console.log(`Found ${userApprovedLeaves.length} approved leaves using ${userIdField} field`);
-          
-          if (userApprovedLeaves.length > 0) {
-            setStats(prevStats => ({
-              ...prevStats,
-              leavesTaken: userApprovedLeaves.length
-            }));
-          }
-        }
-      } else {
-        console.log('No leave requests found in the database');
       }
     } catch (error) {
       console.error('Exception fetching leaves count:', error);

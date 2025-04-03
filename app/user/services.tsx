@@ -258,6 +258,7 @@ export default function ServicesScreen() {
             title="Team"
             icon="people"
             description="View your team members and structure"
+            route="/user/team"
             colorTheme="rose"
             category="other"
           />
