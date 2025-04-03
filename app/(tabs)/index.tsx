@@ -73,7 +73,8 @@ function HomeScreen() {
     presentDays: 18,
     leavesTaken: 0,
     tasksLeft: 0,
-    totalLeavesAllowed: 24
+    totalLeavesAllowed: 24,
+    departmentMembers: 0
   });
 
   // Announcements from database
@@ -175,6 +176,39 @@ function HomeScreen() {
     }
   };
 
+  // Fetch department members count
+  const fetchDepartmentMembersCount = async () => {
+    if (!user) return;
+    
+    try {
+      // First get the current user's department
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('dept')
+        .eq('id', user.id)
+        .single();
+
+      if (userError) throw userError;
+      if (!userData?.dept) return;
+
+      // Then count users in the same department
+      const { count, error: countError } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'employee')
+        .eq('dept', userData.dept);
+
+      if (countError) throw countError;
+
+      setStats(prevStats => ({
+        ...prevStats,
+        departmentMembers: count || 0
+      }));
+    } catch (error) {
+      console.error('Error fetching department members count:', error);
+    }
+  };
+
   // Fetch announcements from database
   const fetchAnnouncements = async () => {
     try {
@@ -209,7 +243,8 @@ function HomeScreen() {
       await Promise.all([
         fetchAnnouncements(),
         fetchTasksCount(),
-        fetchLeavesCount()
+        fetchLeavesCount(),
+        fetchDepartmentMembersCount()
       ]);
     } catch (error) {
       console.error('Error refreshing data:', error);
@@ -220,9 +255,10 @@ function HomeScreen() {
 
   useEffect(() => {
     fetchAnnouncements();
-    fetchTasksCount(); // Fetch tasks count when component mounts
-    fetchLeavesCount(); // Fetch leaves count when component mounts
-    checkCurrentAttendance(); // Check if user is already clocked in
+    fetchTasksCount();
+    fetchLeavesCount();
+    fetchDepartmentMembersCount();
+    checkCurrentAttendance();
   }, []);
 
   // Check current attendance status
@@ -587,10 +623,13 @@ function HomeScreen() {
 
           {/* Stats Section */}
           <View style={styles.statsSection}>
-            <View style={[styles.statBox, { backgroundColor: '#f8fafc' }]}>
-              <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.presentDays}</ThemedText>
-              <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Team Availability</ThemedText>
-            </View>
+            <TouchableOpacity 
+              style={[styles.statBox, { backgroundColor: '#f8fafc' }]}
+              onPress={() => router.push('/user/team')}
+            >
+              <ThemedText style={[styles.statNumber, { color: '#0f172a' }]}>{stats.departmentMembers}</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: '#1e3a8a' }]}>Team Members</ThemedText>
+            </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.statBox, { backgroundColor: '#dbeafe' }]}
               onPress={() => router.push('/user/leave-history')}
